@@ -1,69 +1,62 @@
 /* Lombo Lab — bancada de experimentação. Tokens primeiro; componentes só via tokens. */
 
+/* Tema "Obsidian Laboratory" (Stitch/DESIGN.md): base warm near-black,
+   primário âmbar como sinal ativo, tipografia Geist/Inter/JetBrains Mono.
+   Sem requisições externas de fonte — degradação graciosa p/ fontes locais. */
 :root {
-  --bg: #F5F7F7;
-  --surface: #FFFFFF;
-  --surface-2: #EDF1F1;
-  --ink: #172426;
-  --muted: #5A6B6D;
-  --line: #D8E0E0;
-  --accent: #0E7B72;
-  --accent-contrast: #FFFFFF;
-  --pane-a: #3D5FC4;
-  --pane-b: #B4552D;
-  --pane-c: #7A4DA0;
-  --pane-d: #2E7D46;
-  --ok: #2E7D46;
-  --warn: #9A6700;
-  --err: #B3372E;
-  --diff-add-bg: #DCF2E2;
-  --diff-add-ink: #1B5E2F;
-  --diff-del-bg: #F9DEDC;
-  --diff-del-ink: #8C2B22;
-  --thinking-bg: #F2EFE6;
-  --mono: "Cascadia Code", Consolas, ui-monospace, monospace;
-  --sans: "Segoe UI", system-ui, -apple-system, sans-serif;
+  --bg: #19120A;
+  --surface: #221A12;
+  --surface-2: #31281F;
+  --ink: #F0E0D1;
+  --muted: #A08E7A;
+  --line: #534434;
+  --accent: #F59E0B;
+  --accent-contrast: #2A1700;
+  --pane-a: #7FD0FF;
+  --pane-b: #FFB4AB;
+  --pane-c: #D0BCFF;
+  --pane-d: #86D99A;
+  --ok: #86D99A;
+  --warn: #FFC174;
+  --err: #FFB4AB;
+  --diff-add-bg: #22301B;
+  --diff-add-ink: #B6E3A0;
+  --diff-del-bg: #3A2320;
+  --diff-del-ink: #FFB4AB;
+  --thinking-bg: #261E15;
+  --radius: 4px;
+  --mono: "JetBrains Mono", "Cascadia Code", Consolas, ui-monospace, monospace;
+  --sans: "Inter", "Segoe UI", system-ui, -apple-system, sans-serif;
+  --display: "Geist", "Inter", "Segoe UI", system-ui, sans-serif;
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #101617;
-    --surface: #171F21;
-    --surface-2: #1E282A;
-    --ink: #E6EBEB;
-    --muted: #93A5A7;
-    --line: #2A3639;
-    --accent: #46C0B2;
-    --accent-contrast: #0C1B19;
-    --pane-a: #8AA0EC;
-    --pane-b: #E0946A;
-    --pane-c: #B694DB;
-    --pane-d: #7CC796;
-    --ok: #6FBE8A;
-    --warn: #D9A94A;
-    --err: #E07B70;
-    --diff-add-bg: #1C3326;
-    --diff-add-ink: #9FD9B2;
-    --diff-del-bg: #3A2020;
-    --diff-del-ink: #EFA9A0;
-    --thinking-bg: #211F18;
+/* Usuários com SO em tema claro veem uma variante "papel quente" com o mesmo
+   âmbar de marca — a menos que forcem ?theme= explicitamente. */
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme]) {
+    --bg: #F6F1E9; --surface: #FFFDF9; --surface-2: #ECE2D3; --ink: #241A10;
+    --muted: #7C6A53; --line: #DED0BB; --accent: #A86400; --accent-contrast: #FFF8EE;
+    --pane-a: #2F6FB0; --pane-b: #B3502E; --pane-c: #6B4AA0; --pane-d: #2E7D46;
+    --ok: #2E7D46; --warn: #8A5A00; --err: #A3352B;
+    --diff-add-bg: #DCF0DD; --diff-add-ink: #1B5E2F;
+    --diff-del-bg: #F6DDD6; --diff-del-ink: #8C2B22; --thinking-bg: #F1EAD9;
   }
 }
 :root[data-theme="light"] {
-  --bg: #F5F7F7; --surface: #FFFFFF; --surface-2: #EDF1F1; --ink: #172426;
-  --muted: #5A6B6D; --line: #D8E0E0; --accent: #0E7B72; --accent-contrast: #FFFFFF;
-  --pane-a: #3D5FC4; --pane-b: #B4552D; --pane-c: #7A4DA0; --pane-d: #2E7D46;
-  --ok: #2E7D46; --warn: #9A6700; --err: #B3372E;
-  --diff-add-bg: #DCF2E2; --diff-add-ink: #1B5E2F;
-  --diff-del-bg: #F9DEDC; --diff-del-ink: #8C2B22; --thinking-bg: #F2EFE6;
+  --bg: #F6F1E9; --surface: #FFFDF9; --surface-2: #ECE2D3; --ink: #241A10;
+  --muted: #7C6A53; --line: #DED0BB; --accent: #A86400; --accent-contrast: #FFF8EE;
+  --pane-a: #2F6FB0; --pane-b: #B3502E; --pane-c: #6B4AA0; --pane-d: #2E7D46;
+  --ok: #2E7D46; --warn: #8A5A00; --err: #A3352B;
+  --diff-add-bg: #DCF0DD; --diff-add-ink: #1B5E2F;
+  --diff-del-bg: #F6DDD6; --diff-del-ink: #8C2B22; --thinking-bg: #F1EAD9;
 }
 :root[data-theme="dark"] {
-  --bg: #101617; --surface: #171F21; --surface-2: #1E282A; --ink: #E6EBEB;
-  --muted: #93A5A7; --line: #2A3639; --accent: #46C0B2; --accent-contrast: #0C1B19;
-  --pane-a: #8AA0EC; --pane-b: #E0946A; --pane-c: #B694DB; --pane-d: #7CC796;
-  --ok: #6FBE8A; --warn: #D9A94A; --err: #E07B70;
-  --diff-add-bg: #1C3326; --diff-add-ink: #9FD9B2;
-  --diff-del-bg: #3A2020; --diff-del-ink: #EFA9A0; --thinking-bg: #211F18;
+  --bg: #19120A; --surface: #221A12; --surface-2: #31281F; --ink: #F0E0D1;
+  --muted: #A08E7A; --line: #534434; --accent: #F59E0B; --accent-contrast: #2A1700;
+  --pane-a: #7FD0FF; --pane-b: #FFB4AB; --pane-c: #D0BCFF; --pane-d: #86D99A;
+  --ok: #86D99A; --warn: #FFC174; --err: #FFB4AB;
+  --diff-add-bg: #22301B; --diff-add-ink: #B6E3A0;
+  --diff-del-bg: #3A2320; --diff-del-ink: #FFB4AB; --thinking-bg: #261E15;
 }
 
 * { box-sizing: border-box; }
@@ -72,7 +65,7 @@ html, body { margin: 0; height: 100%; }
 body {
   background: var(--bg); color: var(--ink);
   font: 14px/1.5 var(--sans);
-  display: flex; flex-direction: column;
+  display: flex; flex-direction: row;
 }
 button { font: inherit; cursor: pointer; }
 input, select, textarea { font: inherit; color: inherit; }
@@ -82,7 +75,7 @@ input, select, textarea { font: inherit; color: inherit; }
 }
 
 /* ---------- chrome ---------- */
-.label, th, .tab, .chip, .metric, .btn, .pane-head, .mode-chip {
+.label, th, .nav-item, .chip, .metric, .btn, .pane-head, .mode-chip {
   font-family: var(--mono);
 }
 .label {
@@ -90,27 +83,54 @@ input, select, textarea { font: inherit; color: inherit; }
   color: var(--muted);
 }
 
-header.top {
-  display: flex; align-items: center; gap: 14px;
-  padding: 8px 14px; border-bottom: 1px solid var(--line);
-  background: var(--surface);
+/* Trilho lateral fixo — "instrumento de laboratório": marca no topo,
+   navegação com ícones, aviso de privacidade no rodapé. */
+.sidebar {
+  flex: 0 0 232px; display: flex; flex-direction: column; gap: 6px;
+  padding: 14px 12px; background: var(--surface);
+  border-right: 1px solid var(--line);
 }
-.wordmark { font-family: var(--mono); font-size: 14px; font-weight: 600; letter-spacing: 0.04em; }
+.brand { padding: 6px 8px 14px; }
+.wordmark { font-family: var(--mono); font-size: 16px; font-weight: 600; letter-spacing: 0.02em; }
 .wordmark b { color: var(--accent); font-weight: 600; }
-.tabs { display: flex; gap: 2px; }
-.tab {
-  font-size: 11px; text-transform: uppercase; letter-spacing: 0.08em;
-  padding: 5px 12px; border: 1px solid transparent; border-radius: 3px;
+.nav { display: flex; flex-direction: column; gap: 2px; }
+.nav-item {
+  display: flex; align-items: center; gap: 10px; width: 100%; text-align: left;
+  font-size: 12px; letter-spacing: 0.02em;
+  padding: 9px 10px; border: 1px solid transparent; border-radius: var(--radius);
   background: none; color: var(--muted);
 }
-.tab[aria-selected="true"] { color: var(--ink); background: var(--surface-2); border-color: var(--line); }
-.top .spacer { flex: 1; }
-.privacy {
-  font-size: 11px; color: var(--muted); max-width: 380px;
+.nav-item svg { width: 18px; height: 18px; flex: 0 0 auto; stroke-width: 1.6; }
+.nav-item:hover { color: var(--ink); background: var(--surface-2); }
+.nav-item[aria-selected="true"] {
+  color: var(--accent);
+  background: color-mix(in srgb, var(--accent) 12%, transparent);
+  border-color: color-mix(in srgb, var(--accent) 35%, transparent);
 }
+.sidebar-foot { margin-top: auto; padding: 10px 8px 4px; }
+.privacy { display: block; font-size: 11px; line-height: 1.5; color: var(--muted); }
 .privacy::before { content: "●"; color: var(--warn); margin-right: 5px; font-size: 8px; vertical-align: 1px; }
 
+.workspace { flex: 1; min-width: 0; display: flex; flex-direction: column; }
 main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
+
+/* Telas estreitas: o trilho vira uma barra horizontal no topo. */
+@media (max-width: 760px) {
+  body { flex-direction: column; }
+  .sidebar {
+    flex: 0 0 auto; flex-direction: row; align-items: center; flex-wrap: wrap;
+    gap: 4px 10px; padding: 8px 12px; border-right: none; border-bottom: 1px solid var(--line);
+  }
+  .brand { padding: 0 8px 0 4px; }
+  .nav { flex-direction: row; }
+  .nav-item { padding: 7px 10px; }
+  .sidebar-foot { margin: 0 0 0 auto; padding: 0 4px; }
+  .privacy { max-width: 300px; }
+}
+@media (max-width: 520px) {
+  .privacy { display: none; }
+  .nav-item .nav-label { display: none; }
+}
 .view { flex: 1; min-height: 0; flex-direction: column; }
 .view:not(.active) { display: none !important; }
 .view.active { display: flex; }
@@ -308,3 +328,45 @@ table.params tr.changed td:first-child { color: var(--diff-del-ink); font-weight
 .src.request { color: var(--accent); }
 .empty { color: var(--muted); font-style: italic; }
 .notice-inline { font-size: 11px; color: var(--muted); }
+
+/* ================= diagnóstico de camadas ================= */
+.diagnostics { overflow: auto; }
+.diagnostics .toolbar {
+  display: flex; gap: 12px; align-items: flex-end; flex-wrap: wrap;
+  padding: 9px 14px; border-bottom: 1px solid var(--line); background: var(--surface);
+}
+.diagnostics .toolbar input, .diagnostics .toolbar select {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px; padding: 5px 8px; font-size: 12px;
+}
+.field.inline { flex-direction: column; gap: 4px; }
+.diag-notice { padding: 8px 14px; margin: 0; line-height: 1.5; border-bottom: 1px solid var(--line); }
+.diag-notice code { font-family: var(--mono); background: var(--surface-2); padding: 0 3px; border-radius: 3px; }
+.warn-inline { color: var(--warn); }
+#diag-results { padding: 12px 16px 28px; }
+
+.diag-chart { margin: 6px 0 18px; }
+.diag-chart-head { font-size: 11px; color: var(--muted); margin-bottom: 4px; display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.diag-svg { width: 100%; max-width: 720px; height: auto; display: block; background: var(--surface); border: 1px solid var(--line); border-radius: 6px; }
+.diag-svg .ax-grid { stroke: var(--line); stroke-width: 1; }
+.diag-svg .ax-lbl { fill: var(--muted); font-size: 10px; font-family: var(--mono); }
+.diag-leg { display: inline-flex; align-items: center; gap: 5px; }
+.diag-leg i { width: 12px; height: 3px; border-radius: 2px; display: inline-block; }
+
+.diag-cond { margin: 14px 0; }
+.diag-cond h3 { font-family: var(--mono); font-size: 12px; margin: 0 0 6px; display: flex; align-items: center; gap: 8px; }
+.diag-cond h3 small { color: var(--muted); font-weight: 400; }
+.diag-dot { width: 10px; height: 10px; border-radius: 50%; display: inline-block; }
+table.diag-layers { border-collapse: collapse; width: 100%; font-size: 12px; }
+table.diag-layers th {
+  text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); font-weight: 600; padding: 4px 8px; border-bottom: 1px solid var(--line);
+}
+table.diag-layers td { padding: 4px 8px; border-bottom: 1px solid var(--line); vertical-align: middle; }
+table.diag-layers td.num { font-family: var(--mono); text-align: right; font-variant-numeric: tabular-nums; }
+table.diag-layers tr.emerged td { background: var(--diff-add-bg); }
+table.diag-layers tr.emerged td:first-child { color: var(--diff-add-ink); font-weight: 700; }
+td.chips { display: flex; flex-wrap: wrap; gap: 4px; }
+.tok-chip {
+  font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 4px;
+  background: var(--accent); color: var(--accent-contrast); white-space: pre;
+}

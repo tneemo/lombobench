@@ -28,14 +28,16 @@ const state = {
 
 /* ================= abas ================= */
 function switchView(name) {
-  for (const v of ['lab', 'analysis']) {
+  for (const v of ['lab', 'analysis', 'diagnostics']) {
     $('#view-' + v).classList.toggle('active', v === name);
     $('#tab-' + v).setAttribute('aria-selected', String(v === name));
   }
   if (name === 'analysis') loadRequests();
+  if (name === 'diagnostics') loadDiagPairs();
 }
 $('#tab-lab').onclick = () => switchView('lab');
 $('#tab-analysis').onclick = () => switchView('analysis');
+$('#tab-diagnostics').onclick = () => switchView('diagnostics');
 
 /* ================= setup de sessão ================= */
 function paneConfigRow(i, preset) {
@@ -634,6 +636,213 @@ function showBundleDrawer(bundle, id) {
   $('#drawer').classList.add('open');
 }
 
+/* ================= diagnóstico de camadas (logit lens correlacional) ================= */
+async function loadDiagPairs() {
+  const sel = $('#diag-pair');
+  const prev = sel.value;
+  const data = await (await fetch(`${API}/requests?limit=200`)).json();
+  const pairs = new Map();
+  for (const r of data.requests || []) {
+    if (!r.pair_id) continue;
+    let g = pairs.get(r.pair_id);
+    if (!g) { g = { pair_id: r.pair_id, model: r.model, when: r.started_at, conditions: [] }; pairs.set(r.pair_id, g); }
+    if (r.condition && !g.conditions.includes(r.condition)) g.conditions.push(r.condition);
+  }
+  const opts = ['<option value="">— selecione um par —</option>'];
+  for (const g of pairs.values()) {
+    const when = (g.when || '').slice(5, 16).replace('T', ' ');
+    const label = `${when} · ${g.model || '?'} · ${g.conditions.join(' × ') || g.pair_id.slice(0, 8)}`;
+    opts.push(`<option value="${esc(g.pair_id)}">${esc(label)}</option>`);
+  }
+  sel.innerHTML = opts.join('');
+  if (prev) sel.value = prev;
+}
+
+async function runDiagnostics() {
+  const pairId = $('#diag-pair').value;
+  const target = $('#diag-target').value.trim();
+  const status = $('#diag-status');
+  const results = $('#diag-results');
+  status.style.color = '';
+  if (!pairId) { status.textContent = 'Selecione um par.'; return; }
+  status.textContent = 'Carregando par…';
+  results.innerHTML = '';
+  try {
+    const cmp = await (await fetch(`${API}/compare?pair_id=${encodeURIComponent(pairId)}`)).json();
+    const requests = cmp.requests || [];
+    if (!requests.length) throw new Error('par sem requisições');
+    status.textContent = `Rodando logit lens em ${requests.length} condição(ões)…`;
+    const diags = [];
+    for (let i = 0; i < requests.length; i++) {
+      const r = requests[i];
+      const resp = await fetch(`${API}/requests/${r.id}/diagnostics`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_token: target || null, top_k: 10 }),
+      });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.detail || JSON.stringify(d));
+      diags.push({ diag: d, color: PANE_COLORS[i % PANE_COLORS.length],
+                   name: r.condition || `condição ${i + 1}` });
+    }
+    status.textContent = `Concluído — ${diags[0].diag.num_layers} camadas.`;
+    renderDiagnostics(results, diags, target);
+  } catch (err) {
+    status.textContent = `Erro: ${err.message}`;
+    status.style.color = 'var(--err)';
+  }
+}
+
+/* SVG multi-série: X = índice da camada, Y = valor por camada. */
+function diagLineChart(series, { ymax, title } = {}) {
+  const W = 680, H = 190, padL = 44, padR = 12, padT = 14, padB = 26;
+  const L = Math.max(1, ...series.map(s => s.points.length));
+  const top = ymax || Math.max(1e-9, ...series.flatMap(s => s.points));
+  const x = i => padL + (L <= 1 ? 0 : i * (W - padL - padR) / (L - 1));
+  const y = v => H - padB - (v / top) * (H - padT - padB);
+  const grid = [0, 0.5, 1].map(f => {
+    const gy = H - padB - f * (H - padT - padB);
+    return `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" class="ax-grid"/>` +
+      `<text x="${padL - 6}" y="${gy + 3}" class="ax-lbl" text-anchor="end">${(top * f).toFixed(top < 1 ? 2 : 0)}</text>`;
+  }).join('');
+  const paths = series.map(s => {
+    const d = s.points.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const dots = s.points.map((v, i) =>
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${s.marks && s.marks[i] ? 4 : 2}"
+        fill="${s.color}"><title>camada ${i}: ${v.toFixed(4)}${s.marks && s.marks[i] ? ' (rank 1)' : ''}</title></circle>`).join('');
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}`;
+  }).join('');
+  const xlbl = `<text x="${padL}" y="${H - 6}" class="ax-lbl">camada 0</text>` +
+    `<text x="${W - padR}" y="${H - 6}" class="ax-lbl" text-anchor="end">camada ${L - 1}</text>`;
+  const legend = series.map(s =>
+    `<span class="diag-leg"><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('');
+  return `<div class="diag-chart"><div class="diag-chart-head">${esc(title || '')}${legend}</div>
+    <svg viewBox="0 0 ${W} ${H}" class="diag-svg" preserveAspectRatio="xMidYMid meet">
+      ${grid}${paths}${xlbl}</svg></div>`;
+}
+
+/* SVG barras: divergência por camada. */
+function diagBarChart(values, color, title) {
+  const W = 680, H = 150, padL = 44, padR = 12, padT = 14, padB = 26;
+  const L = Math.max(1, values.length);
+  const top = Math.max(1e-9, ...values);
+  const bw = (W - padL - padR) / L;
+  const y = v => H - padB - (v / top) * (H - padT - padB);
+  const grid = [0, 0.5, 1].map(f => {
+    const gy = H - padB - f * (H - padT - padB);
+    return `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" class="ax-grid"/>` +
+      `<text x="${padL - 6}" y="${gy + 3}" class="ax-lbl" text-anchor="end">${(top * f).toFixed(top < 10 ? 2 : 0)}</text>`;
+  }).join('');
+  const bars = values.map((v, i) =>
+    `<rect x="${(padL + i * bw + 1).toFixed(1)}" y="${y(v).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}"
+      height="${(H - padB - y(v)).toFixed(1)}" fill="${color}"><title>camada ${i}: ${v.toFixed(4)}</title></rect>`).join('');
+  const xlbl = `<text x="${padL}" y="${H - 6}" class="ax-lbl">camada 0</text>` +
+    `<text x="${W - padR}" y="${H - 6}" class="ax-lbl" text-anchor="end">camada ${L - 1}</text>`;
+  return `<div class="diag-chart"><div class="diag-chart-head">${esc(title || '')}</div>
+    <svg viewBox="0 0 ${W} ${H}" class="diag-svg" preserveAspectRatio="xMidYMid meet">
+      ${grid}${bars}${xlbl}</svg></div>`;
+}
+
+/* grade "logit lens evolution": camada × rank, com destaque na camada/célula
+   em que o token final da predição já aparece — onde a hipótese fica legível. */
+function diagLensGrid(entry) {
+  const layers = entry.diag.layers;
+  const finalId = layers.length ? (layers[layers.length - 1].top[0] || {}).token_id : null;
+  const RANKS = 5;
+  const head = `<div class="lens-cell lens-lyr lens-h">camada</div>` +
+    Array.from({ length: RANKS }, (_, i) => `<div class="lens-cell lens-h">rank ${i + 1}</div>`).join('');
+  const rows = layers.map(l => {
+    const cells = l.top.slice(0, RANKS).map(t => {
+      const hit = finalId != null && t.token_id === finalId;
+      const p = (t.prob * 100).toFixed(t.prob >= 0.1 ? 0 : 1);
+      return `<div class="lens-cell lens-tok${hit ? ' hit' : ''}"
+        title="${esc(t.token)} · ${(t.prob * 100).toFixed(2)}% · id ${t.token_id}">
+        <span class="lens-word">${esc(t.token)}</span><span class="lens-p">${p}%</span></div>`;
+    }).join('');
+    const emerged = finalId != null && (l.top[0] || {}).token_id === finalId;
+    return `<div class="lens-cell lens-lyr${emerged ? ' emerged' : ''}">L${l.index}</div>${cells}`;
+  }).join('');
+  return `<div class="lens-wrap">
+    <div class="diag-chart-head">Logit lens · onde a predição final fica legível (célula destacada = token final) · </div>
+    <div class="lens-grid" style="grid-template-columns:auto repeat(${RANKS},minmax(0,1fr))">${head}${rows}</div></div>`;
+}
+
+/* barras da norma do resíduo ‖h‖ por camada — magnitude do fluxo residual. */
+function diagNormBars(entry) {
+  return diagBarChart(entry.diag.layers.map(l => l.hidden_norm), entry.color,
+    'Norma do resíduo ‖h‖ por camada · ');
+}
+
+/* probabilidades finais: última camada = logits reais do modelo (âncora do lens). */
+function diagFinalProbs(entry) {
+  const layers = entry.diag.layers;
+  if (!layers.length) return '';
+  const rows = layers[layers.length - 1].top.slice(0, 6).map(t =>
+    `<tr><td>${esc(t.token)}</td><td class="num">${t.token_id}</td>
+      <td class="num">${(t.prob * 100).toFixed(1)}%</td></tr>`).join('');
+  return `<div class="diag-final">
+    <div class="diag-chart-head">Probabilidades finais (última camada = logits reais) · </div>
+    <table class="final-probs"><thead><tr><th>token</th><th class="num">id</th><th class="num">prob</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+function diagCondBlock(entry, target) {
+  const m = entry.diag.model || {};
+  const normFlag = entry.diag.final_norm_applied ? '' :
+    ' · <span class="warn-inline">norma final não localizada (lens sobre resíduo cru)</span>';
+  let tgtNote = '';
+  if (target) {
+    const emerge = entry.diag.layers.find(l => l.target_rank === 1);
+    tgtNote = emerge
+      ? ` · <span class="ok-inline">“${esc(target)}” alcança rank 1 em L${emerge.index}</span>`
+      : ` · <span class="warn-inline">“${esc(target)}” nunca alcança rank 1</span>`;
+  }
+  return `<div class="diag-cond">
+    <h3><i class="diag-dot" style="background:${entry.color}"></i>${esc(entry.name)}
+      <small>${esc(m.architecture || '')} · ${esc(m.dtype || '')}${normFlag}${tgtNote}</small></h3>
+    <div class="diag-cond-grid">
+      ${diagLensGrid(entry)}
+      <div class="diag-side">${diagNormBars(entry)}${diagFinalProbs(entry)}</div>
+    </div></div>`;
+}
+
+function renderDiagnostics(container, diags, target) {
+  const parts = [];
+  if (target) {
+    const series = diags.map(e => ({
+      name: e.name, color: e.color,
+      points: e.diag.layers.map(l => l.target_prob || 0),
+      marks: e.diag.layers.map(l => l.target_rank === 1),
+    }));
+    parts.push(diagLineChart(series, {
+      title: `p(“${target}”) por camada — onde a hipótese emerge (● = rank 1) · `,
+    }));
+  }
+  if (diags.length === 2) {
+    const [a, b] = diags;
+    const n = Math.min(a.diag.layers.length, b.diag.layers.length);
+    const div = [];
+    for (let i = 0; i < n; i++) {
+      if (target) {
+        div.push(Math.abs((a.diag.layers[i].target_prob || 0) - (b.diag.layers[i].target_prob || 0)));
+      } else {
+        const sa = new Set(a.diag.layers[i].top.map(t => t.token_id));
+        const overlap = b.diag.layers[i].top.filter(t => sa.has(t.token_id)).length;
+        div.push(1 - overlap / Math.max(1, b.diag.layers[i].top.length));
+      }
+    }
+    parts.push(diagBarChart(div, 'var(--accent)',
+      target ? `Divergência |p_A − p_B| por camada — onde as condições se separam · `
+             : `Divergência do top-k (1 − sobreposição) por camada · `));
+  } else if (diags.length > 2) {
+    parts.push('<p class="notice-inline">Divergência calculada apenas para pares de 2 condições; condições extras aparecem só nas tabelas abaixo.</p>');
+  }
+  parts.push(...diags.map(e => diagCondBlock(e, target)));
+  container.innerHTML = parts.join('');
+}
+
+$('#btn-diagnose').onclick = runDiagnostics;
+$('#btn-diag-reload').onclick = loadDiagPairs;
+
 /* ================= análise ================= */
 async function loadRequests() {
   const params = new URLSearchParams({ limit: '200' });
@@ -668,6 +877,7 @@ async function openDrawer(id) {
   state.currentDrawerRequest = r;
   $('#btn-inspect').textContent = 'Executar trace NNsight';
   $('#btn-inspect').onclick = () => runNNsightTrace(r);
+  $('#btn-attention').onclick = () => runAttention(r);
   $('#d-model').textContent = r.model || '?';
   $('#d-id').textContent = r.id;
   const c = $('#drawer-content');
@@ -781,6 +991,94 @@ async function runNNsightTrace(r) {
     btn.textContent = 'Executar trace NNsight';
   }
 }
+/* ============ mapa de atenção (pesos internos reais, por request) ============ */
+async function runAttention(r) {
+  const btn = $('#btn-attention');
+  const content = $('#drawer-content');
+  let panel = $('#attn-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'attn-panel';
+    panel.className = 'attn-panel';
+    content.prepend(panel);
+  }
+  const st = { layer: 0, head: null };
+  async function load() {
+    const status = panel.querySelector('.attn-status');
+    if (status) { status.textContent = 'Capturando…'; status.style.color = ''; }
+    else panel.innerHTML = '<p class="notice-inline">Capturando atenção…</p>';
+    btn.disabled = true;
+    try {
+      const resp = await fetch(`${API}/requests/${r.id}/attention`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layer_index: st.layer, head_index: st.head }),
+      });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.detail || JSON.stringify(d));
+      renderAttnPanel(panel, d, st, load);
+    } catch (err) {
+      panel.innerHTML = `<p class="notice-inline" style="color:var(--err)">Mapa de atenção — erro: ${esc(err.message)}</p>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  await load();
+}
+
+function renderAttnPanel(panel, d, st, reload) {
+  const layerOpts = Array.from({ length: d.num_layers }, (_, i) =>
+    `<option value="${i}"${i === d.layer_index ? ' selected' : ''}>L${i}</option>`).join('');
+  const headOpts = ['<option value="">média (todas as heads)</option>'].concat(
+    Array.from({ length: d.num_heads }, (_, i) =>
+      `<option value="${i}"${i === d.head_index ? ' selected' : ''}>head ${i}</option>`)).join('');
+  panel.innerHTML = `
+    <div class="attn-head">
+      <h3 style="margin:0">Mapa de atenção</h3>
+      <label class="attn-ctl">camada <select id="attn-layer">${layerOpts}</select></label>
+      <label class="attn-ctl">head <select id="attn-head">${headOpts}</select></label>
+      <span class="notice-inline attn-status"></span>
+    </div>
+    <div class="attn-scroll">${attnHeatmap(d)}</div>
+    <p class="notice-inline">Pesos <b>reais</b> de atenção (forward read-only). Linha = token que
+      <i>consulta</i> (query); coluna = token <i>atendido</i> (key); cada linha soma 1. Mostra
+      roteamento de informação — <b>sugestivo</b>, não prova causal de uso.</p>`;
+  panel.querySelector('#attn-layer').onchange = e => { st.layer = Number(e.target.value); reload(); };
+  panel.querySelector('#attn-head').onchange = e => {
+    st.head = e.target.value === '' ? null : Number(e.target.value); reload();
+  };
+}
+
+/* heatmap SVG: linha i = query, coluna j = key; opacidade âmbar ∝ peso. */
+function attnHeatmap(d) {
+  const m = d.matrix, n = m.length;
+  if (!n) return '<p class="notice-inline">sem tokens</p>';
+  const vmax = Math.max(1e-9, ...m.flat());
+  const cell = Math.max(7, Math.min(22, Math.floor(520 / n)));
+  const labels = cell >= 11;
+  const clip = s => { s = (s || '').replace(/\n/g, '⏎').replace(/\t/g, '⇥');
+    return s.length > 10 ? s.slice(0, 10) + '…' : s; };
+  const padL = labels ? 92 : 6, padT = labels ? 86 : 6;
+  const W = padL + n * cell + 6, H = padT + n * cell + 6;
+  let rects = '';
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const w = m[i][j];
+      rects += `<rect x="${padL + j * cell}" y="${padT + i * cell}" width="${cell - 0.5}" height="${cell - 0.5}"
+        fill="var(--accent)" fill-opacity="${(w / vmax).toFixed(3)}"><title>q«${esc(d.tokens[i])}» → k«${esc(d.tokens[j])}»: ${w.toFixed(4)}</title></rect>`;
+    }
+  }
+  let axis = '';
+  if (labels) {
+    for (let i = 0; i < n; i++) {
+      const t = esc(clip(d.tokens[i]));
+      const c = padL + i * cell + cell * 0.72;
+      axis += `<text x="${padL - 6}" y="${padT + i * cell + cell * 0.72}" class="attn-lbl" text-anchor="end">${t}</text>`;
+      axis += `<text x="${c}" y="${padT - 6}" class="attn-lbl" text-anchor="start" transform="rotate(-90 ${c} ${padT - 6})">${t}</text>`;
+    }
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="attn-svg">${rects}${axis}</svg>`;
+}
+
 $('#btn-close-drawer').onclick = () => $('#drawer').classList.remove('open');
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') $('#drawer').classList.remove('open');

@@ -141,3 +141,86 @@ def test_transformers_trace_rejects_unknown_model_layout(monkeypatch):
     engine = _trace_engine(monkeypatch)
     engine.model = SimpleNamespace(lm_head=object())
     assert engine.supports_trace() is False
+
+
+# --- Diagnóstico multi-camada (logit lens correlacional) -------------------
+# Read-only, sem NNsight: usa forward hooks e projeta o resíduo de cada camada
+# pela norma final + lm_head. Testado numa Llama minúscula de pesos aleatórios
+# (sem download); ignorado quando torch/transformers não estão instalados.
+
+
+def _tiny_llama_engine():
+    torch = pytest.importorskip("torch")
+    pytest.importorskip("transformers")
+    from transformers import LlamaConfig, LlamaForCausalLM
+    cfg = LlamaConfig(vocab_size=32, hidden_size=16, intermediate_size=32,
+                      num_hidden_layers=3, num_attention_heads=2,
+                      num_key_value_heads=2, max_position_embeddings=64)
+    model = LlamaForCausalLM(cfg).eval()
+
+    class TinyTok:
+        def __call__(self, text, return_tensors=None):
+            return {"input_ids": torch.tensor([[1, 5, 9, 3]])}
+
+        def encode(self, text, add_special_tokens=False):
+            return [7]  # token-alvo resolve para id 7
+
+        def decode(self, ids):
+            return f"<{ids[0]}>"
+
+    engine = TransformersEngine.__new__(TransformersEngine)
+    engine.model_name = "tiny/llama"
+    engine.model = model
+    engine.tokenizer = TinyTok()
+    engine._torch = torch
+    return engine, model, torch
+
+
+def test_diagnostics_logit_lens_matches_real_logits():
+    engine, model, torch = _tiny_llama_engine()
+    assert engine.supports_diagnostics() is True
+
+    result = engine.trace_all_layers("oi", target_token="X", top_k=5)
+
+    assert result["num_layers"] == 3
+    assert result["final_norm_applied"] is True
+    assert result["target_token"] == "X"
+    assert result["target_token_id"] == 7
+    assert result["tokens"] == [1, 5, 9, 3]
+
+    layers = result["layers"]
+    assert layers[0]["delta_norm"] == 0.0
+    for entry in layers:
+        assert len(entry["top"]) == 5  # top_k respeitado
+        assert set(entry) == {"index", "top", "hidden_norm", "delta_norm",
+                              "target_rank", "target_prob"}
+        assert set(entry["top"][0]) == {"token_id", "token", "prob"}  # sem vetores brutos
+        assert 1 <= entry["target_rank"] <= 32
+        assert 0.0 <= entry["target_prob"] <= 1.0
+
+    # âncora de correção: o lens da última camada reproduz o argmax real do modelo
+    with torch.inference_mode():
+        real = model(input_ids=torch.tensor([[1, 5, 9, 3]])).logits[0, -1]
+    assert layers[-1]["top"][0]["token_id"] == int(real.argmax())
+
+
+def test_diagnostics_without_final_norm(monkeypatch):
+    engine, model, torch = _tiny_llama_engine()
+    monkeypatch.setattr(engine, "_final_norm_path", lambda: None)
+
+    result = engine.trace_all_layers("oi")
+
+    assert result["final_norm_applied"] is False
+    assert result["target_token"] is None
+    assert result["num_layers"] == 3
+    assert result["layers"][0]["target_rank"] is None
+
+
+def test_diagnostics_requires_supported_layout():
+    torch = pytest.importorskip("torch")
+    engine = TransformersEngine.__new__(TransformersEngine)
+    engine.model = SimpleNamespace(lm_head=object())  # sem ModuleList conhecida
+    engine._torch = torch
+    assert engine.supports_diagnostics() is False
+    with pytest.raises(RuntimeError):
+        engine.trace_all_layers("oi")

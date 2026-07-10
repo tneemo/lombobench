@@ -7,16 +7,28 @@
 <link rel="stylesheet" href="/_lombo/app/lab.css">
 </head>
 <body>
-<header class="top">
-  <span class="wordmark">lombo<b>lab</b></span>
-  <nav class="tabs" role="tablist">
-    <button class="tab" role="tab" id="tab-lab" aria-selected="true">Laboratório</button>
-    <button class="tab" role="tab" id="tab-analysis" aria-selected="false">Análise</button>
+<aside class="sidebar">
+  <div class="brand"><span class="wordmark">lombo<b>lab</b></span></div>
+  <nav class="nav" role="tablist" aria-label="Seções do Lab">
+    <button class="nav-item" role="tab" id="tab-lab" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M9 3h6M10 3v6.5L5 18a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-8.5V3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="nav-label">Laboratório</span></button>
+    <button class="nav-item" role="tab" id="tab-analysis" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M4 20V6M4 20h16M8 20v-6M12 20v-10M16 20v-4M20 20V8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="nav-label">Análise</span></button>
+    <button class="nav-item" role="tab" id="tab-diagnostics" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M12 3 3 8l9 5 9-5-9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="nav-label">Diagnóstico</span></button>
   </nav>
-  <span class="spacer"></span>
-  <span class="privacy">As conversas são gravadas localmente (lombo.db) e podem conter dados sensíveis.</span>
-</header>
+  <div class="sidebar-foot">
+    <span class="privacy">As conversas são gravadas localmente (lombo.db) e podem conter dados sensíveis.</span>
+  </div>
+</aside>
 
+<div class="workspace">
 <main>
   <!-- ============ LABORATÓRIO ============ -->
   <section class="view active" id="view-lab">
@@ -127,7 +139,29 @@
       </table>
     </div>
   </section>
+
+  <!-- ============ DIAGNÓSTICO DE CAMADAS ============ -->
+  <section class="view diagnostics" id="view-diagnostics">
+    <div class="toolbar">
+      <label class="field inline"><span class="label">Par (condição A × B)</span>
+        <select id="diag-pair"><option value="">— selecione um par —</option></select></label>
+      <label class="field inline"><span class="label">Token-alvo (opcional)</span>
+        <input id="diag-target" placeholder="ex.: Paris"></label>
+      <button class="btn primary" id="btn-diagnose">Diagnosticar</button>
+      <button class="btn" id="btn-diag-reload" title="Recarregar a lista de pares">↻</button>
+      <span class="notice-inline" id="diag-status"></span>
+    </div>
+    <p class="notice-inline diag-notice">
+      <b>Leitura representacional (logit lens):</b> mostra em qual camada a predição fica
+      <i>legível</i> ao projetar o resíduo de cada camada pela norma final + <code>lm_head</code>.
+      <b>Não</b> é evidência causal de que a camada computa ou usa a feature — isso exige
+      intervenção (activation patching), previsto para a próxima fase. As camadas de parâmetros
+      nunca são fundidas e nenhuma ativação bruta sai do backend.
+    </p>
+    <div id="diag-results"></div>
+  </section>
 </main>
+</div>
 
 <!-- drawer de detalhe -->
 <aside class="drawer" id="drawer" aria-label="Detalhe da requisição">
@@ -138,6 +172,9 @@
     <button class="btn" id="btn-inspect"
       title="Executa o trace NNsight mínimo no modelo Transformers carregado.">
       Executar trace NNsight</button>
+    <button class="btn" id="btn-attention"
+      title="Captura pesos reais de atenção (forward read-only) do modelo Transformers carregado.">
+      Mapa de atenção</button>
     <button class="btn" id="btn-close-drawer">Fechar</button>
   </header>
   <div class="content" id="drawer-content"></div>

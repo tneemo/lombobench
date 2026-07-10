@@ -1,7 +1,140 @@
 <!doctype html>
 <html lang="pt-BR">
-<head><meta charset="utf-8"><title>Lombo Lab</title></head>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Lombo Lab</title>
+<link rel="stylesheet" href="/_lombo/app/lab.css">
+</head>
 <body>
-<p>Lombo Lab — interface em construção (Incremento 2).</p>
+<header class="top">
+  <span class="wordmark">lombo<b>lab</b></span>
+  <nav class="tabs" role="tablist">
+    <button class="tab" role="tab" id="tab-lab" aria-selected="true">Laboratório</button>
+    <button class="tab" role="tab" id="tab-analysis" aria-selected="false">Análise</button>
+  </nav>
+  <span class="spacer"></span>
+  <span class="privacy">As conversas são gravadas localmente (lombo.db) e podem conter dados sensíveis.</span>
+</header>
+
+<main>
+  <!-- ============ LABORATÓRIO ============ -->
+  <section class="view active" id="view-lab">
+    <div class="session-bar" id="session-bar" hidden>
+      <span class="session-title" id="session-title"></span>
+      <span class="mode-chip" id="session-mode"></span>
+      <span class="base-summary" id="session-base"></span>
+      <span class="spacer" style="flex:1"></span>
+      <button class="btn" id="btn-new-session">Nova sessão</button>
+    </div>
+
+    <!-- setup de nova sessão -->
+    <div class="setup" id="setup">
+      <h2>Nova sessão de experimento</h2>
+      <div class="grid">
+        <label class="field"><span class="label">Título</span>
+          <input id="s-title" placeholder="ex.: temperatura 0.2 × 0.8"></label>
+        <label class="field"><span class="label">Modelo base</span>
+          <select id="s-model"></select></label>
+        <label class="field"><span class="label">Temperature base</span>
+          <input id="s-temp" type="number" step="0.1" placeholder="(default do modelo)"></label>
+        <label class="field"><span class="label">Seed base</span>
+          <input id="s-seed" type="number" placeholder="(auto por rodada)"></label>
+      </div>
+      <label class="field" style="margin-top:12px"><span class="label">System prompt base (opcional)</span>
+        <textarea id="s-system" rows="2"></textarea></label>
+
+      <fieldset>
+        <legend>Modo</legend>
+        <label class="check"><input type="radio" name="s-mode" value="controlled" checked>
+          Experimento controlado (padrão)</label>
+        <p class="mode-desc">Cada rodada é independente: todos os painéis recebem o mesmo
+          histórico-base e apenas a variável do painel difere. É o modo comparável, usado para o paper.</p>
+        <label class="check" style="margin-top:8px"><input type="radio" name="s-mode" value="branched">
+          Conversa ramificada</label>
+        <p class="mode-desc">Após a primeira resposta, cada painel segue seu próprio histórico —
+          os contextos divergem naturalmente (exploração livre).</p>
+      </fieldset>
+
+      <fieldset>
+        <legend>Painéis — uma variável manipulada por painel</legend>
+        <div id="pane-configs"></div>
+        <div style="margin-top:10px">
+          <button class="btn" id="btn-add-pane" type="button">+ painel</button>
+        </div>
+      </fieldset>
+
+      <div class="actions">
+        <button class="btn primary" id="btn-create-session">Criar sessão</button>
+        <span class="notice-inline">Sem seed definida, o Lab injeta uma seed explícita por rodada
+          (igual em todos os painéis) para permitir replay futuro.</span>
+      </div>
+
+      <div class="sessions-prev" id="sessions-prev" hidden>
+        <span class="label">Sessões anteriores</span>
+        <div id="sessions-list"></div>
+      </div>
+    </div>
+
+    <!-- bancada -->
+    <div class="bench" id="bench" hidden>
+      <div class="pane-heads" id="pane-heads"></div>
+      <div id="turns"></div>
+    </div>
+
+    <div class="composer" id="composer" hidden>
+      <div class="per-pane-prompts" id="per-pane-prompts" hidden></div>
+      <textarea id="composer-text" placeholder="Mensagem para todos os painéis…"></textarea>
+      <div class="row">
+        <label class="check"><input type="checkbox" id="chk-per-pane"> editar prompt por painel</label>
+        <span class="spacer"></span>
+        <span class="notice-inline" id="composer-status"></span>
+        <button class="btn primary" id="btn-send">Enviar aos painéis</button>
+      </div>
+    </div>
+  </section>
+
+  <!-- ============ ANÁLISE ============ -->
+  <section class="view analysis" id="view-analysis">
+    <div class="toolbar">
+      <input id="f-model" placeholder="modelo">
+      <input id="f-experiment" placeholder="experimento">
+      <select id="f-origin">
+        <option value="">origem: todas</option>
+        <option value="lab">lab</option>
+        <option value="external">external</option>
+      </select>
+      <button class="btn" id="btn-filter">Filtrar</button>
+      <span class="spacer" style="flex:1"></span>
+      <a class="btn" href="/_lombo/api/export?format=csv" download>Export CSV</a>
+      <a class="btn" href="/_lombo/api/export?format=json" download>Export JSON</a>
+    </div>
+    <div class="table-wrap">
+      <table class="req">
+        <thead><tr>
+          <th>Início</th><th>Modelo</th><th>Origem</th><th>Condição</th>
+          <th>Variáveis ≠ base</th><th>tok</th><th>tok/s</th><th>TTFT ms</th><th>Status</th>
+        </tr></thead>
+        <tbody id="req-rows"></tbody>
+      </table>
+    </div>
+  </section>
+</main>
+
+<!-- drawer de detalhe -->
+<aside class="drawer" id="drawer" aria-label="Detalhe da requisição">
+  <header>
+    <strong id="d-model"></strong>
+    <span class="id" id="d-id"></span>
+    <span class="spacer" style="flex:1"></span>
+    <button class="btn" id="btn-inspect" disabled
+      title="Reexecuta este caso sob NNsight (ativações, logits) — fora do escopo da Fase 1">
+      Inspecionar execução — Fase 3 (NNsight)</button>
+    <button class="btn" id="btn-close-drawer">Fechar</button>
+  </header>
+  <div class="content" id="drawer-content"></div>
+</aside>
+
+<script src="/_lombo/app/lab.js"></script>
 </body>
 </html>

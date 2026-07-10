@@ -74,7 +74,8 @@ async def get_session(request: Request, session_id: str):
     reqs = conn.execute(
         "SELECT id, started_at, completed_at, turn_id, branch_id, parent_request_id, "
         "condition, pair_id, replicate, model, response_text, thinking_text, error, "
-        "eval_count, tokens_per_second, time_to_first_token_ms, done_reason "
+        "eval_count, tokens_per_second, time_to_first_token_ms, done_reason, "
+        "prompt_or_messages_json "
         "FROM requests WHERE lab_session_id = ? ORDER BY started_at", (session_id,)).fetchall()
     result["requests"] = [dict(r) for r in reqs]
     return result

@@ -1,0 +1,620 @@
+/* Lombo Lab — front vanilla. O Lab é só mais um cliente do proxy:
+   envia POST /api/chat com headers X-Lombo-* e tudo cai nas mesmas tabelas. */
+'use strict';
+
+const API = '/_lombo/api';
+const $ = (sel, el) => (el || document).querySelector(sel);
+const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12);
+
+const PANE_COLORS = ['var(--pane-a)', 'var(--pane-b)', 'var(--pane-c)', 'var(--pane-d)'];
+const NUMERIC_PARAMS = new Set(['temperature', 'top_p', 'top_k', 'seed', 'repeat_penalty',
+                                'num_ctx', 'num_predict', 'min_p']);
+const VARIABLES = [
+  ['', 'base (controle)'], ['model', 'model'], ['temperature', 'temperature'],
+  ['top_p', 'top_p'], ['top_k', 'top_k'], ['seed', 'seed'],
+  ['repeat_penalty', 'repeat_penalty'], ['num_ctx', 'num_ctx'],
+  ['num_predict', 'num_predict'], ['system', 'system prompt'],
+];
+
+const state = {
+  session: null,     // {id, mode, base_config, panes:[{name, variable, value}]}
+  panes: [],         // runtime: {idx, name, variable, value, condition, history:[], lastRequestId}
+  models: [],
+  labels: [],
+  sending: false,
+};
+
+/* ================= abas ================= */
+function switchView(name) {
+  for (const v of ['lab', 'analysis']) {
+    $('#view-' + v).classList.toggle('active', v === name);
+    $('#tab-' + v).setAttribute('aria-selected', String(v === name));
+  }
+  if (name === 'analysis') loadRequests();
+}
+$('#tab-lab').onclick = () => switchView('lab');
+$('#tab-analysis').onclick = () => switchView('analysis');
+
+/* ================= setup de sessão ================= */
+function paneConfigRow(i, preset) {
+  const row = document.createElement('div');
+  row.className = 'pane-config';
+  row.style.setProperty('--pane-color', PANE_COLORS[i % PANE_COLORS.length]);
+  row.innerHTML = `
+    <label class="field"><span class="label">Painel</span>
+      <input class="p-name" value="${preset?.name || String.fromCharCode(65 + i)}"></label>
+    <label class="field"><span class="label">Variável manipulada</span>
+      <select class="p-var">${VARIABLES.map(([v, l]) =>
+        `<option value="${v}"${preset?.variable === v ? ' selected' : ''}>${l}</option>`).join('')}
+      </select></label>
+    <label class="field"><span class="label">Valor</span>
+      <input class="p-val" value="${preset?.value ?? ''}" placeholder="—"></label>
+    <button class="btn p-del" type="button" title="remover painel">×</button>`;
+  row.querySelector('.p-del').onclick = () => row.remove();
+  return row;
+}
+
+function initSetup() {
+  const wrap = $('#pane-configs');
+  wrap.innerHTML = '';
+  wrap.appendChild(paneConfigRow(0, { variable: '' }));
+  wrap.appendChild(paneConfigRow(1, { variable: 'temperature', value: '0.2' }));
+}
+$('#btn-add-pane').onclick = () =>
+  $('#pane-configs').appendChild(paneConfigRow($('#pane-configs').children.length));
+
+async function loadModels() {
+  try {
+    const data = await (await fetch(`${API}/lab/models`)).json();
+    state.models = (data.models || []).map(m => m.name);
+  } catch { state.models = []; }
+  $('#s-model').innerHTML = state.models.map(m => `<option>${m}</option>`).join('')
+    || '<option value="">(nenhum modelo no Ollama)</option>';
+}
+
+$('#btn-create-session').onclick = async () => {
+  const base_config = { model: $('#s-model').value };
+  if ($('#s-temp').value !== '') base_config.temperature = parseFloat($('#s-temp').value);
+  if ($('#s-seed').value !== '') base_config.seed = parseInt($('#s-seed').value, 10);
+  if ($('#s-system').value.trim()) base_config.system = $('#s-system').value.trim();
+  const panes = [...$('#pane-configs').children].map(row => ({
+    name: $('.p-name', row).value.trim() || '?',
+    variable: $('.p-var', row).value,
+    value: $('.p-val', row).value.trim(),
+  }));
+  if (panes.length < 2) { alert('Crie pelo menos 2 painéis para comparar.'); return; }
+  const body = {
+    title: $('#s-title').value.trim() || `Sessão ${new Date().toLocaleString()}`,
+    mode: document.querySelector('input[name="s-mode"]:checked').value,
+    base_config, panes,
+  };
+  const resp = await fetch(`${API}/lab/sessions`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body) });
+  openSession(await resp.json(), []);
+};
+
+async function loadSessionList() {
+  const data = await (await fetch(`${API}/lab/sessions`)).json();
+  const list = $('#sessions-list');
+  list.innerHTML = '';
+  for (const s of data.sessions || []) {
+    const b = document.createElement('button');
+    b.innerHTML = `<strong>${esc(s.title)}</strong><br>
+      <span class="meta">${s.mode} · ${s.base_config.model || '?'} · ${s.created_at.slice(0, 16)}</span>`;
+    b.onclick = async () => {
+      const full = await (await fetch(`${API}/lab/sessions/${s.id}`)).json();
+      openSession(full, full.requests || []);
+    };
+    list.appendChild(b);
+  }
+  $('#sessions-prev').hidden = !(data.sessions || []).length;
+}
+
+/* ================= sessão ativa ================= */
+function conditionOf(pane) {
+  return pane.variable ? `${pane.variable}=${pane.value}` : 'base';
+}
+
+function openSession(session, pastRequests) {
+  state.session = session;
+  state.panes = session.panes.map((p, idx) => ({
+    ...p, idx, condition: conditionOf(p), history: [], lastRequestId: null,
+  }));
+  $('#setup').hidden = true;
+  $('#session-bar').hidden = false;
+  $('#bench').hidden = false;
+  $('#composer').hidden = false;
+  $('#session-title').textContent = session.title;
+  const mode = $('#session-mode');
+  mode.textContent = session.mode === 'controlled' ? 'experimento controlado' : 'conversa ramificada';
+  mode.classList.toggle('controlled', session.mode === 'controlled');
+  $('#session-base').textContent = 'base: ' + Object.entries(session.base_config)
+    .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' · ');
+
+  const heads = $('#pane-heads');
+  heads.innerHTML = '';
+  heads.style.gridTemplateColumns = `repeat(${state.panes.length}, 1fr)`;
+  for (const pane of state.panes) {
+    const h = document.createElement('div');
+    h.className = 'pane-head';
+    h.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
+    h.innerHTML = `<span class="pane-name">painel ${esc(pane.name)}</span>
+      <span class="pane-cond ${pane.variable ? '' : 'base'}">${esc(pane.condition)}</span>`;
+    heads.appendChild(h);
+  }
+  $('#turns').innerHTML = '';
+  renderPastTurns(pastRequests);
+  updatePerPanePrompts();
+}
+
+function renderPastTurns(requests) {
+  const byTurn = new Map();
+  for (const r of requests) {
+    const key = `${r.turn_id}|${r.replicate || 1}`;
+    if (!byTurn.has(key)) byTurn.set(key, []);
+    byTurn.get(key).push(r);
+  }
+  for (const group of byTurn.values()) {
+    let userText = '';
+    try {
+      const msgs = JSON.parse(group[0].prompt_or_messages_json || '[]');
+      const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+      userText = lastUser ? lastUser.content : '';
+    } catch { /* prompt indisponível */ }
+    const turn = makeTurnDom(userText, null, group[0].replicate || 1);
+    for (const pane of state.panes) {
+      const req = group.find(r => r.condition === pane.condition);
+      const cell = turn.cells[pane.idx];
+      if (!req) { $('.body', cell).innerHTML = '<span class="empty">—</span>'; continue; }
+      if (req.thinking_text) setThinking(cell, req.thinking_text);
+      $('.body', cell).textContent = req.response_text || '';
+      if (req.error) appendError(cell, req.error);
+      finishCellFooter(cell, { id: req.id, eval_count: req.eval_count,
+        tokens_per_second: req.tokens_per_second,
+        time_to_first_token_ms: req.time_to_first_token_ms });
+    }
+    const texts = group.map(r => r.response_text || '');
+    if (texts.filter(Boolean).length >= 2) renderDiff(turn, texts[0], texts[1]);
+  }
+}
+
+/* ================= envio ================= */
+$('#chk-per-pane').onchange = updatePerPanePrompts;
+function updatePerPanePrompts() {
+  const on = $('#chk-per-pane').checked;
+  const wrap = $('#per-pane-prompts');
+  wrap.hidden = !on;
+  wrap.innerHTML = '';
+  if (!on || !state.session) return;
+  for (const pane of state.panes) {
+    const field = document.createElement('label');
+    field.className = 'field';
+    field.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
+    field.innerHTML = `<span class="label" style="color:${PANE_COLORS[pane.idx % PANE_COLORS.length]}">
+        prompt do painel ${esc(pane.name)}</span><textarea class="pp-text"></textarea>`;
+    wrap.appendChild(field);
+  }
+  $('#composer-text').oninput = () => {
+    for (const t of wrap.querySelectorAll('.pp-text'))
+      if (!t.dataset.touched) t.value = $('#composer-text').value;
+  };
+  for (const t of wrap.querySelectorAll('.pp-text'))
+    t.addEventListener('input', () => { t.dataset.touched = '1'; });
+}
+
+$('#btn-send').onclick = () => {
+  const text = $('#composer-text').value.trim();
+  if (!text || state.sending || !state.session) return;
+  const perPane = $('#chk-per-pane').checked
+    ? [...$('#per-pane-prompts').querySelectorAll('.pp-text')].map(t => t.value.trim())
+    : null;
+  sendTurn(text, perPane, rid(), 1);
+  $('#composer-text').value = '';
+  $('#chk-per-pane').checked = false;
+  updatePerPanePrompts();
+};
+
+async function sendTurn(text, perPanePrompts, turnId, replicate) {
+  state.sending = true;
+  $('#btn-send').disabled = true;
+  $('#composer-status').textContent = 'gerando…';
+  const pairId = rid();
+  // seed explícita por rodada (igual em todos os painéis) quando ninguém definiu:
+  // garante que a execução seja replayável (gancho da Fase 3 / NNsight).
+  const injectedSeed = Math.floor(Math.random() * 2 ** 31);
+  const turn = makeTurnDom(text, { text, perPanePrompts, turnId }, replicate);
+
+  await Promise.all(state.panes.map((pane, i) => {
+    const prompt = (perPanePrompts && perPanePrompts[i]) || text;
+    const condition = pane.condition +
+      (perPanePrompts && perPanePrompts[i] && perPanePrompts[i] !== text ? '+prompt≠' : '');
+    return streamToCell(pane, prompt, condition, turn.cells[pane.idx],
+                        { turnId, pairId, replicate, seed: injectedSeed });
+  }));
+
+  await attachPairData(turn, pairId);
+  state.sending = false;
+  $('#btn-send').disabled = false;
+  $('#composer-status').textContent = '';
+}
+
+function buildRequest(pane, prompt, seed) {
+  const base = state.session.base_config;
+  const model = pane.variable === 'model' ? pane.value : base.model;
+  const options = {};
+  if (base.temperature !== undefined) options.temperature = base.temperature;
+  options.seed = base.seed !== undefined ? base.seed : seed;
+  if (pane.variable && pane.variable !== 'model' && pane.variable !== 'system') {
+    options[pane.variable] = NUMERIC_PARAMS.has(pane.variable)
+      ? Number(pane.value) : pane.value;
+  }
+  let system = base.system;
+  if (pane.variable === 'system') system = pane.value;
+
+  const messages = [];
+  if (system) messages.push({ role: 'system', content: system });
+  if (state.session.mode === 'branched') messages.push(...pane.history);
+  messages.push({ role: 'user', content: prompt });
+  return { model, options, messages };
+}
+
+async function streamToCell(pane, prompt, condition, cell, meta) {
+  const { model, options, messages } = buildRequest(pane, prompt, meta.seed);
+  const headers = {
+    'Content-Type': 'application/json',
+    'X-Lombo-Origin': 'lab',
+    'X-Lombo-Session': state.session.id,
+    'X-Lombo-Turn': meta.turnId,
+    'X-Lombo-Pair': meta.pairId,
+    'X-Lombo-Condition': condition,
+    'X-Lombo-Replicate': String(meta.replicate),
+  };
+  if (state.session.mode === 'branched') {
+    headers['X-Lombo-Branch'] = `pane-${pane.idx}`;
+    if (pane.lastRequestId) headers['X-Lombo-Parent'] = pane.lastRequestId;
+  }
+  const bodyEl = $('.body', cell);
+  bodyEl.innerHTML = '<span class="cursor">▍</span>';
+  let responseText = '', thinkingText = '';
+  try {
+    const resp = await fetch('/api/chat', { method: 'POST', headers,
+      body: JSON.stringify({ model, options, messages, stream: true }) });
+    if (!resp.ok) {
+      appendError(cell, `HTTP ${resp.status}: ${(await resp.text()).slice(0, 300)}`);
+      bodyEl.textContent = '';
+      return;
+    }
+    const reader = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buffer = '';
+    for (;;) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      buffer += decoder.decode(value, { stream: true });
+      const lines = buffer.split('\n');
+      buffer = lines.pop();
+      for (const line of lines) {
+        if (!line.trim()) continue;
+        let obj;
+        try { obj = JSON.parse(line); } catch { continue; }
+        const msg = obj.message || {};
+        if (msg.thinking) { thinkingText += msg.thinking; setThinking(cell, thinkingText); }
+        if (msg.content) responseText += msg.content;
+        bodyEl.textContent = responseText;
+        bodyEl.insertAdjacentHTML('beforeend', '<span class="cursor">▍</span>');
+        if (obj.done) {
+          cell.dataset.metrics = JSON.stringify({
+            eval_count: obj.eval_count,
+            tokens_per_second: obj.eval_count && obj.eval_duration
+              ? obj.eval_count / (obj.eval_duration / 1e9) : null,
+          });
+        }
+      }
+    }
+  } catch (err) {
+    appendError(cell, String(err));
+  }
+  bodyEl.textContent = responseText;
+  cell.dataset.responseText = responseText;
+  if (state.session.mode === 'branched' && responseText) {
+    pane.history.push({ role: 'user', content: prompt },
+                      { role: 'assistant', content: responseText });
+  }
+}
+
+/* após a rodada: busca os registros gravados (ids, métricas, ttft) pelo pair_id */
+async function attachPairData(turn, pairId) {
+  let requests = [];
+  for (let attempt = 0; attempt < 12; attempt++) {
+    await new Promise(r => setTimeout(r, 600));
+    try {
+      const data = await (await fetch(`${API}/compare?pair_id=${pairId}`)).json();
+      requests = data.requests || [];
+      if (requests.length >= state.panes.length) break;
+    } catch { /* proxy ocupado; tenta de novo */ }
+  }
+  for (const pane of state.panes) {
+    const cell = turn.cells[pane.idx];
+    const req = requests.find(r => (r.condition || '').startsWith(pane.condition)) ||
+                requests.find(r => r.condition === pane.condition);
+    const local = cell.dataset.metrics ? JSON.parse(cell.dataset.metrics) : {};
+    finishCellFooter(cell, req ? {
+      id: req.id, eval_count: req.eval_count,
+      tokens_per_second: req.tokens_per_second,
+      time_to_first_token_ms: req.time_to_first_token_ms,
+    } : { ...local, id: null });
+    if (state.session.mode === 'branched' && req) pane.lastRequestId = req.id;
+  }
+  const texts = state.panes.map(p => turn.cells[p.idx].dataset.responseText || '');
+  if (texts.filter(Boolean).length >= 2) renderDiff(turn, texts[0], texts[1]);
+}
+
+/* ================= DOM da rodada ================= */
+function makeTurnDom(userText, resendInfo, replicate) {
+  const turnEl = document.createElement('div');
+  turnEl.className = 'turn';
+  const meta = document.createElement('div');
+  meta.className = 'turn-meta';
+  meta.innerHTML = `<span class="label">rodada${replicate > 1 ? ` · réplica ${replicate}` : ''}</span>`;
+  if (resendInfo && state.session.mode === 'controlled') {
+    const btn = document.createElement('button');
+    btn.className = 'btn';
+    btn.style.marginLeft = '10px';
+    btn.textContent = 'reenviar (nova réplica)';
+    let count = replicate;
+    btn.onclick = () => { if (!state.sending)
+      sendTurn(resendInfo.text, resendInfo.perPanePrompts, resendInfo.turnId, ++count); };
+    meta.appendChild(btn);
+  }
+  turnEl.appendChild(meta);
+
+  const user = document.createElement('div');
+  user.className = 'user-msg';
+  user.textContent = userText || '(prompt indisponível)';
+  turnEl.appendChild(user);
+
+  const grid = document.createElement('div');
+  grid.className = 'responses';
+  grid.style.gridTemplateColumns = `repeat(${state.panes.length}, 1fr)`;
+  const cells = state.panes.map(pane => {
+    const cell = document.createElement('div');
+    cell.className = 'cell';
+    cell.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
+    cell.innerHTML = '<div class="body"></div><footer></footer>';
+    grid.appendChild(cell);
+    return cell;
+  });
+  turnEl.appendChild(grid);
+  $('#turns').appendChild(turnEl);
+  turnEl.scrollIntoView({ block: 'end' });
+  return { el: turnEl, grid, cells };
+}
+
+function setThinking(cell, text) {
+  let box = $('.thinking', cell);
+  if (!box) {
+    box = document.createElement('details');
+    box.className = 'thinking';
+    box.open = true;
+    box.innerHTML = '<summary>thinking</summary><div class="t-text"></div>';
+    cell.prepend(box);
+  }
+  $('.t-text', box).textContent = text;
+}
+
+function appendError(cell, text) {
+  const e = document.createElement('div');
+  e.className = 'error';
+  e.textContent = text;
+  cell.appendChild(e);
+}
+
+function finishCellFooter(cell, info) {
+  const footer = $('footer', cell);
+  footer.innerHTML = '';
+  const m = (label, v, digits) => v != null
+    ? `<span class="metric">${label} <b>${Number(v).toFixed(digits)}</b></span>` : '';
+  footer.insertAdjacentHTML('beforeend',
+    m('tok', info.eval_count, 0) + m('tok/s', info.tokens_per_second, 1) +
+    m('ttft ms', info.time_to_first_token_ms, 0));
+  if (info.id) {
+    const labels = document.createElement('div');
+    labels.className = 'labels-row';
+    for (const label of state.labels) {
+      const chip = document.createElement('button');
+      chip.className = 'chip';
+      chip.textContent = label.replace(/_/g, ' ');
+      chip.onclick = async () => {
+        chip.disabled = true;
+        await fetch(`${API}/requests/${info.id}/evaluations`, {
+          method: 'POST', headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ labels: [label] }) });
+        chip.disabled = false;
+        chip.classList.add('on');
+      };
+      labels.appendChild(chip);
+    }
+    footer.appendChild(labels);
+    const detail = document.createElement('button');
+    detail.className = 'btn';
+    detail.textContent = 'detalhes';
+    detail.onclick = () => openDrawer(info.id);
+    footer.appendChild(detail);
+  }
+}
+
+/* ================= diff palavra a palavra (LCS) ================= */
+function wordDiff(a, b) {
+  const A = a.split(/\s+/).slice(0, 800), B = b.split(/\s+/).slice(0, 800);
+  const n = A.length, m = B.length;
+  const dp = Array.from({ length: n + 1 }, () => new Uint16Array(m + 1));
+  for (let i = n - 1; i >= 0; i--)
+    for (let j = m - 1; j >= 0; j--)
+      dp[i][j] = A[i] === B[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1]);
+  const out = [];
+  let i = 0, j = 0;
+  while (i < n && j < m) {
+    if (A[i] === B[j]) { out.push(['=', A[i]]); i++; j++; }
+    else if (dp[i + 1][j] >= dp[i][j + 1]) out.push(['-', A[i++]]);
+    else out.push(['+', B[j++]]);
+  }
+  while (i < n) out.push(['-', A[i++]]);
+  while (j < m) out.push(['+', B[j++]]);
+  return out;
+}
+
+function renderDiff(turn, textA, textB) {
+  let strip = $('.diff-strip', turn.grid);
+  if (!strip) {
+    strip = document.createElement('div');
+    strip.className = 'diff-strip';
+    turn.grid.appendChild(strip);
+  }
+  const parts = wordDiff(textA, textB).map(([op, w]) =>
+    op === '=' ? esc(w) : op === '-' ? `<del>${esc(w)}</del>` : `<ins>${esc(w)}</ins>`);
+  const nameA = state.panes[0].name, nameB = state.panes[1].name;
+  strip.innerHTML = `<span class="label">diff ${esc(nameA)} → ${esc(nameB)}
+    (<del>só em ${esc(nameA)}</del> / <ins>só em ${esc(nameB)}</ins>)${
+    state.panes.length > 2 ? ' — painéis extras não incluídos no diff' : ''}</span>` +
+    parts.join(' ');
+}
+
+/* ================= análise ================= */
+async function loadRequests() {
+  const params = new URLSearchParams({ limit: '200' });
+  if ($('#f-model').value) params.set('model', $('#f-model').value);
+  if ($('#f-experiment').value) params.set('experiment', $('#f-experiment').value);
+  if ($('#f-origin').value) params.set('origin', $('#f-origin').value);
+  const data = await (await fetch(`${API}/requests?${params}`)).json();
+  const tbody = $('#req-rows');
+  tbody.innerHTML = '';
+  for (const r of data.requests || []) {
+    const tr = document.createElement('tr');
+    const diffKeys = Object.keys(r.params_diff || {}).join(' ');
+    tr.innerHTML = `
+      <td>${(r.started_at || '').slice(5, 19).replace('T', ' ')}</td>
+      <td>${esc(r.model || '?')}</td>
+      <td><span class="pill ${r.origin === 'lab' ? 'lab' : ''}">${r.origin}</span></td>
+      <td>${esc(r.condition || '—')}</td>
+      <td class="diffkeys">${esc(diffKeys || '—')}</td>
+      <td class="num">${r.eval_count ?? ''}</td>
+      <td class="num">${r.tokens_per_second ? r.tokens_per_second.toFixed(1) : ''}</td>
+      <td class="num">${r.time_to_first_token_ms ? r.time_to_first_token_ms.toFixed(0) : ''}</td>
+      <td>${r.error ? `<span class="pill err">erro</span>` : `<span class="pill">${r.status_code ?? ''}</span>`}</td>`;
+    tr.onclick = () => openDrawer(r.id);
+    tbody.appendChild(tr);
+  }
+}
+$('#btn-filter').onclick = loadRequests;
+
+/* ================= drawer de detalhe ================= */
+async function openDrawer(id) {
+  const r = await (await fetch(`${API}/requests/${id}`)).json();
+  $('#d-model').textContent = r.model || '?';
+  $('#d-id').textContent = r.id;
+  const c = $('#drawer-content');
+  const inferred = r.inferred_params || {};
+  const requested = r.requested_params || {};
+  const confirmed = r.confirmed_params || {};
+  const diff = r.params_diff || {};
+  const paramKeys = [...new Set([...Object.keys(requested), ...Object.keys(inferred),
+                                 ...Object.keys(confirmed)])].sort();
+  const rows = paramKeys.map(k => {
+    const inf = inferred[k];
+    return `<tr class="${diff[k] ? 'changed' : ''}">
+      <td>${esc(k)}</td>
+      <td>${k in requested ? esc(JSON.stringify(requested[k])) : '<span class="empty">—</span>'}</td>
+      <td>${inf ? `${esc(JSON.stringify(inf.value))} <span class="src ${inf.source}">(${inf.source})</span>` : '—'}</td>
+      <td>${confirmed[k] ? esc(JSON.stringify(confirmed[k].value)) : '<span class="empty">não confirmado</span>'}</td>
+      <td>${diff[k] ? esc(JSON.stringify(diff[k].base_value)) + ` <span class="src">(${diff[k].base_source})</span>` : ''}</td>
+    </tr>`;
+  }).join('');
+
+  const evals = (r.evaluations || []).map(e =>
+    `<span class="metric">${esc(e.metric)} <b>${esc(typeof e.value === 'object'
+      ? (e.value.label || JSON.stringify(e.value)) : String(e.value))}</b>
+      <span class="src">${e.source}</span></span>`).join(' ');
+
+  c.innerHTML = `
+    <h3>Resposta</h3><pre>${esc(r.response_text || '(vazia)')}</pre>
+    ${r.thinking_text ? `<h3>Thinking (separado da resposta)</h3><pre>${esc(r.thinking_text)}</pre>` : ''}
+    ${r.error ? `<h3>Erro</h3><pre>${esc(r.error)}</pre>` : ''}
+    <h3>Parâmetros — camadas nunca fundidas</h3>
+    <table class="params"><thead><tr>
+      <th>parâmetro</th><th>solicitado</th><th>inferido</th><th>confirmado</th><th>base (se ≠)</th>
+    </tr></thead><tbody>${rows}</tbody></table>
+    <p class="notice-inline">“Inferido” = estimativa do proxy (request &gt; Modelfile &gt; default do
+      Ollama). O servidor não ecoa parâmetros de amostragem; só a coluna “confirmado” vem da resposta.</p>
+    <h3>Métricas</h3>
+    <p>${['eval_count', 'tokens_per_second', 'time_to_first_token_ms', 'prompt_eval_count', 'done_reason']
+      .filter(k => r[k] != null)
+      .map(k => `<span class="metric">${k} <b>${typeof r[k] === 'number' ? +r[k].toFixed(2) : esc(String(r[k]))}</b></span>`)
+      .join(' ')}</p>
+    <h3>Avaliações</h3><p>${evals || '<span class="empty">nenhuma</span>'}</p>
+    <div class="labels-row" id="drawer-labels"></div>
+    <h3>Contexto</h3>
+    <details><summary class="label">prompt / messages</summary>
+      <pre>${esc(JSON.stringify(r.prompt_or_messages, null, 2) || '')}</pre></details>
+    <details><summary class="label">body bruto da requisição (auditoria/replay)</summary>
+      <pre>${esc(r.request_body_raw || '')}</pre></details>
+    ${r.observed_runtime ? `<details><summary class="label">runtime observado (/api/ps — não é confirmação)</summary>
+      <pre>${esc(JSON.stringify(r.observed_runtime, null, 2))}</pre></details>` : ''}
+    ${r.baseline ? `<details><summary class="label">baseline do modelo (digest ${esc((r.baseline.digest || '?').slice(0, 12))})</summary>
+      <pre>${esc(r.baseline.parameters_raw || '(sem parameters no Modelfile)')}</pre></details>` : ''}
+    ${r.environment ? `<h3>Ambiente</h3><p class="notice-inline">Ollama ${esc(r.environment.ollama_version || '?')}
+      · ${esc(r.environment.os || '')} · Python ${esc(r.environment.python_version || '')}
+      · ${esc(r.environment.cpu || '')} · ${r.environment.ram_gb || '?'} GB RAM</p>` : ''}`;
+
+  const labelsRow = $('#drawer-labels');
+  for (const label of state.labels) {
+    const chip = document.createElement('button');
+    chip.className = 'chip';
+    chip.textContent = label.replace(/_/g, ' ');
+    chip.onclick = async () => {
+      await fetch(`${API}/requests/${id}/evaluations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ labels: [label] }) });
+      chip.classList.add('on');
+    };
+    labelsRow.appendChild(chip);
+  }
+  $('#drawer').classList.add('open');
+}
+$('#btn-close-drawer').onclick = () => $('#drawer').classList.remove('open');
+document.addEventListener('keydown', e => {
+  if (e.key === 'Escape') $('#drawer').classList.remove('open');
+});
+
+$('#btn-new-session').onclick = () => {
+  $('#setup').hidden = false;
+  $('#session-bar').hidden = true;
+  $('#bench').hidden = true;
+  $('#composer').hidden = true;
+  loadSessionList();
+};
+
+function esc(s) {
+  return String(s ?? '').replace(/[&<>"']/g,
+    ch => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[ch]));
+}
+
+/* ================= boot ================= */
+(async function boot() {
+  const theme = new URLSearchParams(location.search).get('theme');
+  if (theme) document.documentElement.dataset.theme = theme;
+  const [, labels] = await Promise.all([loadModels(),
+    fetch(`${API}/labels`).then(r => r.json())]);
+  state.labels = labels.labels || [];
+  initSetup();
+  loadSessionList();
+  const params = new URLSearchParams(location.search);
+  const sid = params.get('session');
+  if (sid) {
+    const full = await (await fetch(`${API}/lab/sessions/${sid}`)).json();
+    if (full.id) openSession(full, full.requests || []);
+  }
+  if (params.get('view') === 'analysis') switchView('analysis');
+  const reqId = params.get('request');
+  if (reqId) openDrawer(reqId);
+})();

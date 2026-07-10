@@ -10,11 +10,13 @@ const PANE_COLORS = ['var(--pane-a)', 'var(--pane-b)', 'var(--pane-c)', 'var(--p
 const NUMERIC_PARAMS = new Set(['temperature', 'top_p', 'top_k', 'seed', 'repeat_penalty',
                                 'num_ctx', 'num_predict', 'min_p']);
 const VARIABLES = [
-  ['', 'base (controle)'], ['model', 'model'], ['temperature', 'temperature'],
-  ['top_p', 'top_p'], ['top_k', 'top_k'], ['seed', 'seed'],
+  ['', 'base (controle)'], ['model', 'model'], ['prompt', 'prompt (mensagem)'],
+  ['temperature', 'temperature'], ['top_p', 'top_p'], ['top_k', 'top_k'], ['seed', 'seed'],
   ['repeat_penalty', 'repeat_penalty'], ['num_ctx', 'num_ctx'],
   ['num_predict', 'num_predict'], ['system', 'system prompt'],
 ];
+// parâmetros que NÃO viram options.* do Ollama — resolvidos por outro caminho
+const NON_OPTION_VARIABLES = new Set(['model', 'system', 'prompt']);
 
 const state = {
   session: null,     // {id, mode, base_config, panes:[{name, variable, value}]}
@@ -58,7 +60,7 @@ function initSetup() {
   const wrap = $('#pane-configs');
   wrap.innerHTML = '';
   wrap.appendChild(paneConfigRow(0, { variable: '' }));
-  wrap.appendChild(paneConfigRow(1, { variable: 'temperature', value: '0.2' }));
+  wrap.appendChild(paneConfigRow(1, { variable: 'prompt', value: 'variante' }));
 }
 $('#btn-add-pane').onclick = () =>
   $('#pane-configs').appendChild(paneConfigRow($('#pane-configs').children.length));
@@ -145,7 +147,10 @@ function openSession(session, pastRequests) {
   }
   $('#turns').innerHTML = '';
   renderPastTurns(pastRequests);
-  updatePerPanePrompts();
+  buildComposerBoxes();
+  // se alguma variável manipulada for o próprio prompt, começa dessincronizado
+  // — cada painel precisa mesmo de um texto diferente.
+  $('#chk-sync').checked = !state.panes.some(p => p.variable === 'prompt');
 }
 
 function renderPastTurns(requests) {
@@ -156,13 +161,16 @@ function renderPastTurns(requests) {
     byTurn.get(key).push(r);
   }
   for (const group of byTurn.values()) {
-    let userText = '';
-    try {
-      const msgs = JSON.parse(group[0].prompt_or_messages_json || '[]');
-      const lastUser = [...msgs].reverse().find(m => m.role === 'user');
-      userText = lastUser ? lastUser.content : '';
-    } catch { /* prompt indisponível */ }
-    const turn = makeTurnDom(userText, null, group[0].replicate || 1);
+    const texts = state.panes.map(pane => {
+      const req = group.find(r => r.condition === pane.condition);
+      if (!req) return '';
+      try {
+        const msgs = JSON.parse(req.prompt_or_messages_json || '[]');
+        const lastUser = [...msgs].reverse().find(m => m.role === 'user');
+        return lastUser ? lastUser.content : '';
+      } catch { return ''; }
+    });
+    const turn = makeTurnDom(texts, null, group[0].replicate || 1);
     for (const pane of state.panes) {
       const req = group.find(r => r.condition === pane.condition);
       const cell = turn.cells[pane.idx];
@@ -174,48 +182,56 @@ function renderPastTurns(requests) {
         tokens_per_second: req.tokens_per_second,
         time_to_first_token_ms: req.time_to_first_token_ms });
     }
-    const texts = group.map(r => r.response_text || '');
-    if (texts.filter(Boolean).length >= 2) renderDiff(turn, texts[0], texts[1]);
+    const respTexts = state.panes.map(pane => {
+      const req = group.find(r => r.condition === pane.condition);
+      return req ? (req.response_text || '') : '';
+    });
+    if (respTexts.filter(Boolean).length >= 2) renderDiff(turn, respTexts[0], respTexts[1]);
   }
 }
 
-/* ================= envio ================= */
-$('#chk-per-pane').onchange = updatePerPanePrompts;
-function updatePerPanePrompts() {
-  const on = $('#chk-per-pane').checked;
-  const wrap = $('#per-pane-prompts');
-  wrap.hidden = !on;
-  wrap.innerHTML = '';
-  if (!on || !state.session) return;
+/* ================= envio: um composer por painel ================= */
+function buildComposerBoxes() {
+  const grid = $('#composer-grid');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = `repeat(${state.panes.length}, 1fr)`;
   for (const pane of state.panes) {
-    const field = document.createElement('label');
+    const field = document.createElement('div');
     field.className = 'field';
     field.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
     field.innerHTML = `<span class="label" style="color:${PANE_COLORS[pane.idx % PANE_COLORS.length]}">
-        prompt do painel ${esc(pane.name)}</span><textarea class="pp-text"></textarea>`;
-    wrap.appendChild(field);
+        painel ${esc(pane.name)}</span>
+      <textarea class="composer-box" placeholder="Mensagem para o painel ${esc(pane.name)}…"></textarea>`;
+    grid.appendChild(field);
   }
-  $('#composer-text').oninput = () => {
-    for (const t of wrap.querySelectorAll('.pp-text'))
-      if (!t.dataset.touched) t.value = $('#composer-text').value;
-  };
-  for (const t of wrap.querySelectorAll('.pp-text'))
-    t.addEventListener('input', () => { t.dataset.touched = '1'; });
+  const boxes = [...grid.querySelectorAll('.composer-box')];
+  for (const box of boxes) {
+    box.addEventListener('input', () => {
+      if ($('#chk-sync').checked) for (const other of boxes) if (other !== box) other.value = box.value;
+    });
+  }
 }
-
-$('#btn-send').onclick = () => {
-  const text = $('#composer-text').value.trim();
-  if (!text || state.sending || !state.session) return;
-  const perPane = $('#chk-per-pane').checked
-    ? [...$('#per-pane-prompts').querySelectorAll('.pp-text')].map(t => t.value.trim())
-    : null;
-  sendTurn(text, perPane, rid(), 1);
-  $('#composer-text').value = '';
-  $('#chk-per-pane').checked = false;
-  updatePerPanePrompts();
+$('#chk-sync').onchange = () => {
+  if (!$('#chk-sync').checked) return;
+  const boxes = [...document.querySelectorAll('.composer-box')];
+  const master = boxes[0]?.value || '';
+  for (const b of boxes) b.value = master;
 };
 
-async function sendTurn(text, perPanePrompts, turnId, replicate) {
+$('#btn-send').onclick = () => {
+  if (state.sending || !state.session) return;
+  const boxes = [...document.querySelectorAll('.composer-box')];
+  const texts = boxes.map(b => b.value.trim());
+  if (!texts.some(Boolean)) return;
+  if (texts.some(t => !t)) {
+    alert('Preencha a mensagem de todos os painéis (ou ligue "mensagens sincronizadas").');
+    return;
+  }
+  sendTurn(texts, rid(), 1);
+  for (const b of boxes) b.value = '';
+};
+
+async function sendTurn(texts, turnId, replicate) {
   state.sending = true;
   $('#btn-send').disabled = true;
   $('#composer-status').textContent = 'gerando…';
@@ -223,12 +239,12 @@ async function sendTurn(text, perPanePrompts, turnId, replicate) {
   // seed explícita por rodada (igual em todos os painéis) quando ninguém definiu:
   // garante que a execução seja replayável (gancho da Fase 3 / NNsight).
   const injectedSeed = Math.floor(Math.random() * 2 ** 31);
-  const turn = makeTurnDom(text, { text, perPanePrompts, turnId }, replicate);
+  const turn = makeTurnDom(texts, { texts, turnId }, replicate);
 
   await Promise.all(state.panes.map((pane, i) => {
-    const prompt = (perPanePrompts && perPanePrompts[i]) || text;
+    const prompt = texts[i];
     const condition = pane.condition +
-      (perPanePrompts && perPanePrompts[i] && perPanePrompts[i] !== text ? '+prompt≠' : '');
+      (pane.variable !== 'prompt' && texts[i] !== texts[0] ? '+prompt≠' : '');
     return streamToCell(pane, prompt, condition, turn.cells[pane.idx],
                         { turnId, pairId, replicate, seed: injectedSeed });
   }));
@@ -245,7 +261,7 @@ function buildRequest(pane, prompt, seed) {
   const options = {};
   if (base.temperature !== undefined) options.temperature = base.temperature;
   options.seed = base.seed !== undefined ? base.seed : seed;
-  if (pane.variable && pane.variable !== 'model' && pane.variable !== 'system') {
+  if (pane.variable && !NON_OPTION_VARIABLES.has(pane.variable)) {
     options[pane.variable] = NUMERIC_PARAMS.has(pane.variable)
       ? Number(pane.value) : pane.value;
   }
@@ -351,7 +367,7 @@ async function attachPairData(turn, pairId) {
 }
 
 /* ================= DOM da rodada ================= */
-function makeTurnDom(userText, resendInfo, replicate) {
+function makeTurnDom(texts, resendInfo, replicate) {
   const turnEl = document.createElement('div');
   turnEl.className = 'turn';
   const meta = document.createElement('div');
@@ -363,16 +379,32 @@ function makeTurnDom(userText, resendInfo, replicate) {
     btn.style.marginLeft = '10px';
     btn.textContent = 'reenviar (nova réplica)';
     let count = replicate;
-    btn.onclick = () => { if (!state.sending)
-      sendTurn(resendInfo.text, resendInfo.perPanePrompts, resendInfo.turnId, ++count); };
+    btn.onclick = () => { if (!state.sending) sendTurn(resendInfo.texts, resendInfo.turnId, ++count); };
     meta.appendChild(btn);
   }
   turnEl.appendChild(meta);
 
-  const user = document.createElement('div');
-  user.className = 'user-msg';
-  user.textContent = userText || '(prompt indisponível)';
-  turnEl.appendChild(user);
+  const allSame = texts.every(t => t === texts[0]);
+  if (allSame) {
+    const user = document.createElement('div');
+    user.className = 'user-msg';
+    user.textContent = texts[0] || '(prompt indisponível)';
+    turnEl.appendChild(user);
+  } else {
+    // mensagens divergem entre painéis: uma bolha por painel, não uma única
+    // bolha compartilhada — é exatamente o caso "mesma base, prompts diferentes".
+    const row = document.createElement('div');
+    row.className = 'user-msgs';
+    row.style.gridTemplateColumns = `repeat(${state.panes.length}, 1fr)`;
+    state.panes.forEach((pane, i) => {
+      const bubble = document.createElement('div');
+      bubble.className = 'user-msg pane-msg';
+      bubble.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
+      bubble.innerHTML = `<span class="pane-msg-name">${esc(pane.name)}</span>${esc(texts[i] || '(vazio)')}`;
+      row.appendChild(bubble);
+    });
+    turnEl.appendChild(row);
+  }
 
   const grid = document.createElement('div');
   grid.className = 'responses';

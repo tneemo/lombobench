@@ -83,10 +83,10 @@
     </div>
 
     <div class="composer" id="composer" hidden>
-      <div class="per-pane-prompts" id="per-pane-prompts" hidden></div>
-      <textarea id="composer-text" placeholder="Mensagem para todos os painéis…"></textarea>
+      <div class="composer-grid" id="composer-grid"></div>
       <div class="row">
-        <label class="check"><input type="checkbox" id="chk-per-pane"> editar prompt por painel</label>
+        <label class="check"><input type="checkbox" id="chk-sync" checked>
+          mensagens sincronizadas (mesmo texto em todos os painéis)</label>
         <span class="spacer"></span>
         <span class="notice-inline" id="composer-status"></span>
         <button class="btn primary" id="btn-send">Enviar aos painéis</button>

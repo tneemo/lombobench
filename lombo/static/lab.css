@@ -165,6 +165,12 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   border-radius: 10px; padding: 8px 13px; white-space: pre-wrap;
 }
 .turn .turn-meta { text-align: center; margin-bottom: 6px; }
+.turn .user-msgs { display: grid; gap: 10px; margin-bottom: 10px; }
+.turn .user-msg.pane-msg { max-width: none; margin: 0; border-left: 3px solid var(--pane-color, var(--line)); }
+.pane-msg-name {
+  display: block; font-family: var(--mono); font-size: 10px; text-transform: uppercase;
+  letter-spacing: 0.07em; color: var(--pane-color, var(--muted)); margin-bottom: 3px;
+}
 .responses { display: grid; gap: 10px; align-items: start; }
 
 .cell {
@@ -221,8 +227,9 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
 }
 .composer .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .composer .row .spacer { flex: 1; }
-.per-pane-prompts { display: grid; gap: 8px; }
-.per-pane-prompts textarea { min-height: 38px; }
+.composer-grid { display: grid; gap: 8px; }
+.composer-grid .field { border-left: 3px solid var(--pane-color, var(--line)); padding-left: 8px; gap: 3px; }
+.composer-grid textarea { min-height: 44px; }
 .check { display: inline-flex; gap: 6px; align-items: center; font-size: 12px; color: var(--muted); }
 
 /* ---------- setup de sessão ---------- */

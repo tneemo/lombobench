@@ -20,6 +20,7 @@ from contextlib import asynccontextmanager
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
+from urllib.parse import unquote
 
 import httpx
 from fastapi import FastAPI, Request
@@ -124,7 +125,9 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
             no_log = True
             continue
         if lname in _LOMBO_HEADERS:
-            meta[_LOMBO_HEADERS[lname]] = value
+            # texto livre (ex.: condition) chega percent-encoded — headers só
+            # aceitam ISO-8859-1; unquote() é no-op em valores já ASCII simples.
+            meta[_LOMBO_HEADERS[lname]] = unquote(value)
             continue
         if lname in _SKIP_REQUEST_HEADERS or lname.startswith("x-lombo-"):
             continue

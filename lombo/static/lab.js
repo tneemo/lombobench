@@ -283,7 +283,9 @@ async function streamToCell(pane, prompt, condition, cell, meta) {
     'X-Lombo-Session': state.session.id,
     'X-Lombo-Turn': meta.turnId,
     'X-Lombo-Pair': meta.pairId,
-    'X-Lombo-Condition': condition,
+    // HTTP headers só aceitam ISO-8859-1; condition é texto livre (pode ter
+    // '≠', emoji, aspas curvas...) então vai percent-encoded — o proxy decodifica.
+    'X-Lombo-Condition': encodeURIComponent(condition),
     'X-Lombo-Replicate': String(meta.replicate),
   };
   if (state.session.mode === 'branched') {

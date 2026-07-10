@@ -186,7 +186,8 @@ function renderPastTurns(requests) {
       const req = group.find(r => r.condition === pane.condition);
       return req ? (req.response_text || '') : '';
     });
-    if (respTexts.filter(Boolean).length >= 2) renderDiff(turn, respTexts[0], respTexts[1]);
+    if (respTexts.filter(Boolean).length >= 2)
+      renderDiff(turn, respTexts[0], respTexts[1], group[0].pair_id);
   }
 }
 
@@ -365,7 +366,7 @@ async function attachPairData(turn, pairId) {
     if (state.session.mode === 'branched' && req) pane.lastRequestId = req.id;
   }
   const texts = state.panes.map(p => turn.cells[p.idx].dataset.responseText || '');
-  if (texts.filter(Boolean).length >= 2) renderDiff(turn, texts[0], texts[1]);
+  if (texts.filter(Boolean).length >= 2) renderDiff(turn, texts[0], texts[1], pairId);
 }
 
 /* ================= DOM da rodada ================= */
@@ -498,7 +499,7 @@ function wordDiff(a, b) {
   return out;
 }
 
-function renderDiff(turn, textA, textB) {
+function renderDiff(turn, textA, textB, pairId) {
   let strip = $('.diff-strip', turn.grid);
   if (!strip) {
     strip = document.createElement('div');
@@ -508,10 +509,76 @@ function renderDiff(turn, textA, textB) {
   const parts = wordDiff(textA, textB).map(([op, w]) =>
     op === '=' ? esc(w) : op === '-' ? `<del>${esc(w)}</del>` : `<ins>${esc(w)}</ins>`);
   const nameA = state.panes[0].name, nameB = state.panes[1].name;
-  strip.innerHTML = `<span class="label">diff ${esc(nameA)} → ${esc(nameB)}
-    (<del>só em ${esc(nameA)}</del> / <ins>só em ${esc(nameB)}</ins>)${
-    state.panes.length > 2 ? ' — painéis extras não incluídos no diff' : ''}</span>` +
-    parts.join(' ');
+  strip.innerHTML = `<div class="diff-head">
+      <span class="label">diff ${esc(nameA)} → ${esc(nameB)}
+        (<del>só em ${esc(nameA)}</del> / <ins>só em ${esc(nameB)}</ins>)${
+        state.panes.length > 2 ? ' — painéis extras não incluídos no diff' : ''}</span>
+      <button class="btn nn-pair-btn" type="button">Abrir pacote NNsight (par)</button>
+    </div><div class="diff-body">${parts.join(' ')}</div>`;
+  const btn = $('.nn-pair-btn', strip);
+  if (btn) btn.onclick = () => openNNsightBundle(pairId);
+}
+
+/* ================= pacote de replay para NNsight (fora do escopo: não roda ativações aqui) ================= */
+const NNSIGHT_NOTICE =
+  'Este pacote traz tudo que uma reexecução determinística precisa: prompt exato, seed, ' +
+  'parâmetros nas camadas solicitada/inferida e o digest do modelo. Ele NÃO roda NNsight nem ' +
+  'extrai ativações — o LomboProxy só observa os controles externos de inferência do Ollama. ' +
+  'Atenção: Ollama serve pesos GGUF (llama.cpp); NNsight precisa da versão HuggingFace/PyTorch ' +
+  'do modelo, então as ativações inspecionadas virão dessa outra versão, não literalmente do ' +
+  'mesmo runtime que gerou esta resposta.';
+
+function seedOf(r) {
+  if (r.requested_params && 'seed' in r.requested_params) return r.requested_params.seed;
+  const inf = r.inferred_params && r.inferred_params.seed;
+  return inf ? inf.value : null;
+}
+
+function bundleExecution(r) {
+  return {
+    condition: r.condition || null,
+    model: r.model,
+    model_digest: r.model_digest || (r.baseline && r.baseline.digest) || null,
+    system_prompt: r.system_prompt || null,
+    messages: r.prompt_or_messages || null,
+    seed: seedOf(r),
+    params_solicitados: r.requested_params || {},
+    params_inferidos: r.inferred_params || {},
+    response_text: r.response_text || null,
+    thinking_text: r.thinking_text || null,
+  };
+}
+
+async function openNNsightBundle(pairId, singleRequest) {
+  let execucoes, id;
+  if (singleRequest) {
+    execucoes = [bundleExecution(singleRequest)];
+    id = singleRequest.id;
+  } else {
+    const data = await (await fetch(`${API}/compare?pair_id=${pairId}`)).json();
+    execucoes = (data.requests || []).map(bundleExecution);
+    id = pairId;
+  }
+  const bundle = { formato: 'lombobench-nnsight-replay-bundle-v1', aviso: NNSIGHT_NOTICE, execucoes };
+  showBundleDrawer(bundle, id);
+}
+
+function showBundleDrawer(bundle, id) {
+  $('#d-model').textContent = 'Pacote de replay NNsight';
+  $('#d-id').textContent = id || '';
+  $('#btn-inspect').onclick = null;
+  const json = JSON.stringify(bundle, null, 2);
+  $('#drawer-content').innerHTML = `
+    <p class="notice-inline">${esc(bundle.aviso)}</p>
+    <div class="row" style="margin:10px 0 4px"><button class="btn primary" id="btn-copy-bundle">Copiar JSON</button></div>
+    <pre>${esc(json)}</pre>`;
+  $('#btn-copy-bundle').onclick = async () => {
+    await navigator.clipboard.writeText(json);
+    const btn = $('#btn-copy-bundle');
+    btn.textContent = 'Copiado!';
+    setTimeout(() => { btn.textContent = 'Copiar JSON'; }, 1500);
+  };
+  $('#drawer').classList.add('open');
 }
 
 /* ================= análise ================= */
@@ -545,6 +612,8 @@ $('#btn-filter').onclick = loadRequests;
 /* ================= drawer de detalhe ================= */
 async function openDrawer(id) {
   const r = await (await fetch(`${API}/requests/${id}`)).json();
+  state.currentDrawerRequest = r;
+  $('#btn-inspect').onclick = () => openNNsightBundle(null, r);
   $('#d-model').textContent = r.model || '?';
   $('#d-id').textContent = r.id;
   const c = $('#drawer-content');

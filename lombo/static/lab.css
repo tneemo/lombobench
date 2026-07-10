@@ -211,7 +211,8 @@ main { flex: 1; min-height: 0; display: flex; flex-direction: column; }
   grid-column: 1 / -1; background: var(--surface); border: 1px dashed var(--line);
   border-radius: 4px; padding: 9px 12px; font-size: 13px;
 }
-.diff-strip .label { margin-bottom: 4px; display: block; }
+.diff-strip .diff-head { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 6px; }
+.diff-strip .diff-head .label { margin-bottom: 0; }
 .diff-strip ins { background: var(--diff-add-bg); color: var(--diff-add-ink); text-decoration: none; border-radius: 2px; padding: 0 1px; }
 .diff-strip del { background: var(--diff-del-bg); color: var(--diff-del-ink); text-decoration: line-through; border-radius: 2px; padding: 0 1px; }
 

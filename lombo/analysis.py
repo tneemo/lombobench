@@ -138,6 +138,9 @@ async def compare(request: Request, pair_id: str):
             "SELECT metric, value, source FROM evaluations WHERE request_id = ?",
             (row["id"],)).fetchall()
         d["evaluations"] = [{**dict(e), "value": _loads_or_raw(e["value"])} for e in evals]
+        if row["model"]:
+            base = db.get_baseline(conn, row["model"])
+            d["model_digest"] = base["digest"] if base else None
         out.append(d)
     return {"pair_id": pair_id, "requests": out}
 

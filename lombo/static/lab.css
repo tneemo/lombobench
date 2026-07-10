@@ -370,3 +370,60 @@ td.chips { display: flex; flex-wrap: wrap; gap: 4px; }
   font-family: var(--mono); font-size: 11px; padding: 1px 6px; border-radius: 4px;
   background: var(--accent); color: var(--accent-contrast); white-space: pre;
 }
+
+/* bloco por condição: grade logit lens + lateral (norma + probs finais) */
+.diag-cond-grid { display: grid; gap: 14px; }
+.diag-side { display: grid; grid-template-columns: 1.6fr 1fr; gap: 14px; align-items: start; }
+.diag-side .diag-chart { margin: 0; }
+@media (max-width: 900px) { .diag-side { grid-template-columns: 1fr; } }
+
+/* grade logit lens (camada × rank) */
+.lens-grid {
+  display: grid; gap: 1px; background: var(--line);
+  border: 1px solid var(--line); border-radius: 6px; overflow: hidden;
+}
+.lens-cell {
+  background: var(--surface); padding: 5px 8px; min-width: 0;
+  font-family: var(--mono); font-size: 11px; display: flex; align-items: baseline; gap: 6px;
+}
+.lens-cell.lens-h {
+  color: var(--muted); font-size: 10px; text-transform: uppercase; letter-spacing: 0.06em;
+  background: var(--bg);
+}
+.lens-lyr { color: var(--muted); justify-content: flex-end; font-variant-numeric: tabular-nums; }
+.lens-lyr.emerged { color: var(--accent); font-weight: 700; }
+.lens-tok { justify-content: space-between; }
+.lens-tok .lens-word { color: var(--ink); overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lens-tok .lens-p { color: var(--muted); font-size: 10px; flex: none; }
+.lens-tok.hit { background: color-mix(in srgb, var(--accent) 16%, var(--surface)); }
+.lens-tok.hit .lens-word { color: var(--accent); }
+
+/* tabela de probabilidades finais */
+table.final-probs { border-collapse: collapse; width: 100%; font-size: 12px; }
+table.final-probs th {
+  text-align: left; font-size: 10px; text-transform: uppercase; letter-spacing: 0.07em;
+  color: var(--muted); padding: 4px 8px; border-bottom: 1px solid var(--line);
+}
+table.final-probs th.num { text-align: right; }
+table.final-probs td { padding: 4px 8px; border-bottom: 1px solid var(--line); font-family: var(--mono); }
+table.final-probs td.num { text-align: right; font-variant-numeric: tabular-nums; }
+.ok-inline { color: var(--ok); }
+
+/* ================= mapa de atenção (drawer) ================= */
+.attn-panel {
+  border: 1px solid var(--accent); border-radius: 6px;
+  padding: 10px 12px; margin-bottom: 16px; background: var(--surface-2);
+}
+.attn-head { display: flex; gap: 14px; align-items: center; flex-wrap: wrap; margin-bottom: 8px; }
+.attn-head h3 { text-transform: none; letter-spacing: 0; color: var(--ink); font-size: 13px; }
+.attn-ctl { font-size: 11px; color: var(--muted); display: inline-flex; gap: 5px; align-items: center; }
+.attn-ctl select {
+  background: var(--bg); border: 1px solid var(--line); border-radius: 4px;
+  color: var(--ink); padding: 3px 6px; font-size: 12px;
+}
+.attn-scroll {
+  overflow: auto; max-height: 60vh;
+  border: 1px solid var(--line); border-radius: 6px; background: var(--bg);
+}
+.attn-svg { display: block; }
+.attn-svg .attn-lbl { fill: var(--muted); font-family: var(--mono); font-size: 9px; }

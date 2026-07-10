@@ -730,7 +730,7 @@ function diagBarChart(values, color, title) {
   const grid = [0, 0.5, 1].map(f => {
     const gy = H - padB - f * (H - padT - padB);
     return `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" class="ax-grid"/>` +
-      `<text x="${padL - 6}" y="${gy + 3}" class="ax-lbl" text-anchor="end">${(top * f).toFixed(2)}</text>`;
+      `<text x="${padL - 6}" y="${gy + 3}" class="ax-lbl" text-anchor="end">${(top * f).toFixed(top < 10 ? 2 : 0)}</text>`;
   }).join('');
   const bars = values.map((v, i) =>
     `<rect x="${(padL + i * bw + 1).toFixed(1)}" y="${y(v).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}"
@@ -742,29 +742,67 @@ function diagBarChart(values, color, title) {
       ${grid}${bars}${xlbl}</svg></div>`;
 }
 
-function diagLayerTable(entry, target) {
-  const d = entry.diag;
-  const rows = d.layers.map(l => {
-    const chips = l.top.slice(0, 6).map(t =>
-      `<span class="tok-chip" style="opacity:${(0.2 + 0.8 * t.prob).toFixed(2)}"
-        title="${esc(t.token)} · ${(t.prob * 100).toFixed(1)}% · id ${t.token_id}">${esc(t.token)}</span>`).join('');
-    const tgt = target
-      ? `<td class="num">${l.target_rank ?? '—'}</td><td class="num">${l.target_prob != null ? (l.target_prob * 100).toFixed(2) + '%' : '—'}</td>`
-      : '';
-    return `<tr class="${l.target_rank === 1 ? 'emerged' : ''}">
-      <td class="num">${l.index}</td><td class="chips">${chips}</td>
-      <td class="num">${l.hidden_norm.toFixed(1)}</td><td class="num">${l.delta_norm.toFixed(1)}</td>${tgt}</tr>`;
+/* grade "logit lens evolution": camada × rank, com destaque na camada/célula
+   em que o token final da predição já aparece — onde a hipótese fica legível. */
+function diagLensGrid(entry) {
+  const layers = entry.diag.layers;
+  const finalId = layers.length ? (layers[layers.length - 1].top[0] || {}).token_id : null;
+  const RANKS = 5;
+  const head = `<div class="lens-cell lens-lyr lens-h">camada</div>` +
+    Array.from({ length: RANKS }, (_, i) => `<div class="lens-cell lens-h">rank ${i + 1}</div>`).join('');
+  const rows = layers.map(l => {
+    const cells = l.top.slice(0, RANKS).map(t => {
+      const hit = finalId != null && t.token_id === finalId;
+      const p = (t.prob * 100).toFixed(t.prob >= 0.1 ? 0 : 1);
+      return `<div class="lens-cell lens-tok${hit ? ' hit' : ''}"
+        title="${esc(t.token)} · ${(t.prob * 100).toFixed(2)}% · id ${t.token_id}">
+        <span class="lens-word">${esc(t.token)}</span><span class="lens-p">${p}%</span></div>`;
+    }).join('');
+    const emerged = finalId != null && (l.top[0] || {}).token_id === finalId;
+    return `<div class="lens-cell lens-lyr${emerged ? ' emerged' : ''}">L${l.index}</div>${cells}`;
   }).join('');
-  const m = d.model || {};
-  const normFlag = d.final_norm_applied ? '' :
+  return `<div class="lens-wrap">
+    <div class="diag-chart-head">Logit lens · onde a predição final fica legível (célula destacada = token final) · </div>
+    <div class="lens-grid" style="grid-template-columns:auto repeat(${RANKS},minmax(0,1fr))">${head}${rows}</div></div>`;
+}
+
+/* barras da norma do resíduo ‖h‖ por camada — magnitude do fluxo residual. */
+function diagNormBars(entry) {
+  return diagBarChart(entry.diag.layers.map(l => l.hidden_norm), entry.color,
+    'Norma do resíduo ‖h‖ por camada · ');
+}
+
+/* probabilidades finais: última camada = logits reais do modelo (âncora do lens). */
+function diagFinalProbs(entry) {
+  const layers = entry.diag.layers;
+  if (!layers.length) return '';
+  const rows = layers[layers.length - 1].top.slice(0, 6).map(t =>
+    `<tr><td>${esc(t.token)}</td><td class="num">${t.token_id}</td>
+      <td class="num">${(t.prob * 100).toFixed(1)}%</td></tr>`).join('');
+  return `<div class="diag-final">
+    <div class="diag-chart-head">Probabilidades finais (última camada = logits reais) · </div>
+    <table class="final-probs"><thead><tr><th>token</th><th class="num">id</th><th class="num">prob</th></tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+function diagCondBlock(entry, target) {
+  const m = entry.diag.model || {};
+  const normFlag = entry.diag.final_norm_applied ? '' :
     ' · <span class="warn-inline">norma final não localizada (lens sobre resíduo cru)</span>';
+  let tgtNote = '';
+  if (target) {
+    const emerge = entry.diag.layers.find(l => l.target_rank === 1);
+    tgtNote = emerge
+      ? ` · <span class="ok-inline">“${esc(target)}” alcança rank 1 em L${emerge.index}</span>`
+      : ` · <span class="warn-inline">“${esc(target)}” nunca alcança rank 1</span>`;
+  }
   return `<div class="diag-cond">
     <h3><i class="diag-dot" style="background:${entry.color}"></i>${esc(entry.name)}
-      <small>${esc(m.architecture || '')} · ${esc(m.dtype || '')}${normFlag}</small></h3>
-    <table class="diag-layers"><thead><tr>
-      <th>camada</th><th>top tokens (logit lens)</th><th>‖h‖</th><th>Δ</th>
-      ${target ? '<th>rank(alvo)</th><th>p(alvo)</th>' : ''}</tr></thead>
-      <tbody>${rows}</tbody></table></div>`;
+      <small>${esc(m.architecture || '')} · ${esc(m.dtype || '')}${normFlag}${tgtNote}</small></h3>
+    <div class="diag-cond-grid">
+      ${diagLensGrid(entry)}
+      <div class="diag-side">${diagNormBars(entry)}${diagFinalProbs(entry)}</div>
+    </div></div>`;
 }
 
 function renderDiagnostics(container, diags, target) {
@@ -798,7 +836,7 @@ function renderDiagnostics(container, diags, target) {
   } else if (diags.length > 2) {
     parts.push('<p class="notice-inline">Divergência calculada apenas para pares de 2 condições; condições extras aparecem só nas tabelas abaixo.</p>');
   }
-  parts.push(...diags.map(e => diagLayerTable(e, target)));
+  parts.push(...diags.map(e => diagCondBlock(e, target)));
   container.innerHTML = parts.join('');
 }
 
@@ -839,6 +877,7 @@ async function openDrawer(id) {
   state.currentDrawerRequest = r;
   $('#btn-inspect').textContent = 'Executar trace NNsight';
   $('#btn-inspect').onclick = () => runNNsightTrace(r);
+  $('#btn-attention').onclick = () => runAttention(r);
   $('#d-model').textContent = r.model || '?';
   $('#d-id').textContent = r.id;
   const c = $('#drawer-content');
@@ -952,6 +991,94 @@ async function runNNsightTrace(r) {
     btn.textContent = 'Executar trace NNsight';
   }
 }
+/* ============ mapa de atenção (pesos internos reais, por request) ============ */
+async function runAttention(r) {
+  const btn = $('#btn-attention');
+  const content = $('#drawer-content');
+  let panel = $('#attn-panel');
+  if (!panel) {
+    panel = document.createElement('div');
+    panel.id = 'attn-panel';
+    panel.className = 'attn-panel';
+    content.prepend(panel);
+  }
+  const st = { layer: 0, head: null };
+  async function load() {
+    const status = panel.querySelector('.attn-status');
+    if (status) { status.textContent = 'Capturando…'; status.style.color = ''; }
+    else panel.innerHTML = '<p class="notice-inline">Capturando atenção…</p>';
+    btn.disabled = true;
+    try {
+      const resp = await fetch(`${API}/requests/${r.id}/attention`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ layer_index: st.layer, head_index: st.head }),
+      });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.detail || JSON.stringify(d));
+      renderAttnPanel(panel, d, st, load);
+    } catch (err) {
+      panel.innerHTML = `<p class="notice-inline" style="color:var(--err)">Mapa de atenção — erro: ${esc(err.message)}</p>`;
+    } finally {
+      btn.disabled = false;
+    }
+  }
+  await load();
+}
+
+function renderAttnPanel(panel, d, st, reload) {
+  const layerOpts = Array.from({ length: d.num_layers }, (_, i) =>
+    `<option value="${i}"${i === d.layer_index ? ' selected' : ''}>L${i}</option>`).join('');
+  const headOpts = ['<option value="">média (todas as heads)</option>'].concat(
+    Array.from({ length: d.num_heads }, (_, i) =>
+      `<option value="${i}"${i === d.head_index ? ' selected' : ''}>head ${i}</option>`)).join('');
+  panel.innerHTML = `
+    <div class="attn-head">
+      <h3 style="margin:0">Mapa de atenção</h3>
+      <label class="attn-ctl">camada <select id="attn-layer">${layerOpts}</select></label>
+      <label class="attn-ctl">head <select id="attn-head">${headOpts}</select></label>
+      <span class="notice-inline attn-status"></span>
+    </div>
+    <div class="attn-scroll">${attnHeatmap(d)}</div>
+    <p class="notice-inline">Pesos <b>reais</b> de atenção (forward read-only). Linha = token que
+      <i>consulta</i> (query); coluna = token <i>atendido</i> (key); cada linha soma 1. Mostra
+      roteamento de informação — <b>sugestivo</b>, não prova causal de uso.</p>`;
+  panel.querySelector('#attn-layer').onchange = e => { st.layer = Number(e.target.value); reload(); };
+  panel.querySelector('#attn-head').onchange = e => {
+    st.head = e.target.value === '' ? null : Number(e.target.value); reload();
+  };
+}
+
+/* heatmap SVG: linha i = query, coluna j = key; opacidade âmbar ∝ peso. */
+function attnHeatmap(d) {
+  const m = d.matrix, n = m.length;
+  if (!n) return '<p class="notice-inline">sem tokens</p>';
+  const vmax = Math.max(1e-9, ...m.flat());
+  const cell = Math.max(7, Math.min(22, Math.floor(520 / n)));
+  const labels = cell >= 11;
+  const clip = s => { s = (s || '').replace(/\n/g, '⏎').replace(/\t/g, '⇥');
+    return s.length > 10 ? s.slice(0, 10) + '…' : s; };
+  const padL = labels ? 92 : 6, padT = labels ? 86 : 6;
+  const W = padL + n * cell + 6, H = padT + n * cell + 6;
+  let rects = '';
+  for (let i = 0; i < n; i++) {
+    for (let j = 0; j < n; j++) {
+      const w = m[i][j];
+      rects += `<rect x="${padL + j * cell}" y="${padT + i * cell}" width="${cell - 0.5}" height="${cell - 0.5}"
+        fill="var(--accent)" fill-opacity="${(w / vmax).toFixed(3)}"><title>q«${esc(d.tokens[i])}» → k«${esc(d.tokens[j])}»: ${w.toFixed(4)}</title></rect>`;
+    }
+  }
+  let axis = '';
+  if (labels) {
+    for (let i = 0; i < n; i++) {
+      const t = esc(clip(d.tokens[i]));
+      const c = padL + i * cell + cell * 0.72;
+      axis += `<text x="${padL - 6}" y="${padT + i * cell + cell * 0.72}" class="attn-lbl" text-anchor="end">${t}</text>`;
+      axis += `<text x="${c}" y="${padT - 6}" class="attn-lbl" text-anchor="start" transform="rotate(-90 ${c} ${padT - 6})">${t}</text>`;
+    }
+  }
+  return `<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" class="attn-svg">${rects}${axis}</svg>`;
+}
+
 $('#btn-close-drawer').onclick = () => $('#drawer').classList.remove('open');
 document.addEventListener('keydown', e => {
   if (e.key === 'Escape') $('#drawer').classList.remove('open');

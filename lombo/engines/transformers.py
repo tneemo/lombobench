@@ -278,6 +278,89 @@ class TransformersEngine(Engine):
             "model": self.get_model_info(),
         }
 
+    def supports_attention(self) -> bool:
+        """Return true when attention weights can be captured for this model.
+
+        Needs only a known decoder-layer layout to bound ``layer_index``; the
+        weights come straight from a read-only forward pass with
+        ``output_attentions=True`` (no NNsight, no ``lm_head``).
+        """
+        return self._layer_path() is not None
+
+    def attention(
+        self,
+        prompt: str | list[dict[str, Any]],
+        layer_index: int,
+        head_index: int | None = None,
+    ) -> dict[str, Any]:
+        """Capture real attention weights for one layer in a single forward pass.
+
+        Runs the model with ``output_attentions=True`` and returns the
+        token×token attention matrix for the requested decoder layer — a
+        specific head, or the mean over heads when ``head_index`` is ``None``.
+
+        These are genuine internal weights (where each query position distributes
+        its attention mass over the keys), not a projection. Attention routing is
+        *suggestive* of information flow, not causal proof that the attended value
+        is used downstream — so the payload is an observation, not an explanation.
+        """
+        torch = self._torch
+        path = self._layer_path()
+        if path is None:
+            raise RuntimeError("this model architecture is not supported for attention")
+        layers, _ = path
+        num_layers = len(layers)
+        if not -num_layers <= layer_index < num_layers:
+            raise IndexError(
+                f"layer_index {layer_index} is out of range for {num_layers} layers")
+        layer_index %= num_layers
+
+        text = self._format_prompt(prompt)
+        encoded = self.tokenizer(text, return_tensors="pt")
+        device = next(self.model.parameters()).device
+        encoded = {name: tensor.to(device) for name, tensor in encoded.items()}
+        token_ids = encoded["input_ids"][0].tolist()
+
+        # SDPA/flash kernels do not materialise the weight matrix; only the eager
+        # path can return it. Force eager just for this pass and restore after.
+        orig_impl = getattr(self.model.config, "_attn_implementation", None)
+        try:
+            self.model.config._attn_implementation = "eager"
+            with torch.inference_mode():
+                out = self.model(**encoded, use_cache=False, output_attentions=True)
+        finally:
+            if orig_impl is not None:
+                self.model.config._attn_implementation = orig_impl
+
+        attentions = getattr(out, "attentions", None)
+        if not attentions or attentions[layer_index] is None:
+            raise ValueError(
+                "model did not return attention weights; its attention "
+                "implementation may not support output_attentions")
+
+        # [batch, heads, seq, seq] -> pick the layer, then a head or the mean.
+        attn = attentions[layer_index][0].detach().float()  # [heads, seq, seq]
+        num_heads = int(attn.shape[0])
+        if head_index is not None:
+            if not -num_heads <= head_index < num_heads:
+                raise IndexError(
+                    f"head_index {head_index} is out of range for {num_heads} heads")
+            head_index %= num_heads
+            matrix = attn[head_index]
+        else:
+            matrix = attn.mean(dim=0)
+
+        return {
+            "layer_index": layer_index,
+            "head_index": head_index,
+            "num_layers": num_layers,
+            "num_heads": num_heads,
+            "tokens": [self.tokenizer.decode([int(t)]) for t in token_ids],
+            "token_ids": [int(t) for t in token_ids],
+            "matrix": matrix.cpu().tolist(),
+            "model": self.get_model_info(),
+        }
+
     def _layer_path(self):
         """Return (layers, attribute path) for the few layouts we support."""
         candidates = (

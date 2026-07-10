@@ -104,6 +104,11 @@ class DiagnosticsRequest(BaseModel):
     top_k: int = 10
 
 
+class AttentionRequest(BaseModel):
+    layer_index: int = 0
+    head_index: int | None = None
+
+
 def _resolve_trace_engine(state, request_id: str):
     """Shared guards for the NNsight endpoints: returns (engine, prompt).
 
@@ -174,6 +179,28 @@ async def diagnostics_request(request: Request, request_id: str, body: Diagnosti
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(500, f"diagnóstico de camadas falhou: {exc}") from exc
+    return result
+
+
+@router.post("/requests/{request_id}/attention")
+async def attention_request(request: Request, request_id: str, body: AttentionRequest):
+    """Real attention weights (token×token) for one layer/head of a Transformers request.
+
+    Internal quantities read from a forward pass with ``output_attentions``. They
+    show WHERE each query position sends its attention mass — suggestive of
+    information routing, not causal proof that the attended value is used. No
+    NNsight required; the causal story (patching) stays in the later phase.
+    """
+    engine, prompt = _resolve_trace_engine(request.app.state, request_id)
+    if not engine.supports_attention():
+        raise HTTPException(422, "arquitetura do modelo não suportada para mapa de atenção")
+    try:
+        result = await asyncio.to_thread(
+            engine.attention, prompt, body.layer_index, body.head_index)
+    except (IndexError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"mapa de atenção falhou: {exc}") from exc
     return result
 
 

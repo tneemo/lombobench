@@ -192,8 +192,9 @@ def test_diagnostics_logit_lens_matches_real_logits():
     assert layers[0]["delta_norm"] == 0.0
     for entry in layers:
         assert len(entry["top"]) == 5  # top_k respeitado
-        assert set(entry) == {"index", "top", "hidden_norm", "delta_norm",
+        assert set(entry) == {"index", "top", "hidden_norm", "delta_norm", "entropy",
                               "target_rank", "target_prob"}
+        assert entry["entropy"] >= 0.0
         assert set(entry["top"][0]) == {"token_id", "token", "prob"}  # sem vetores brutos
         assert 1 <= entry["target_rank"] <= 32
         assert 0.0 <= entry["target_prob"] <= 1.0

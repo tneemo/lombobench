@@ -33,7 +33,7 @@ function switchView(name) {
     $('#tab-' + v).setAttribute('aria-selected', String(v === name));
   }
   if (name === 'analysis') loadRequests();
-  if (name === 'diagnostics') loadDiagPairs();
+  if (name === 'diagnostics') (window.loadVisualDiagPairs || loadDiagPairs)();
 }
 $('#tab-lab').onclick = () => switchView('lab');
 $('#tab-analysis').onclick = () => switchView('analysis');

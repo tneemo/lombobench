@@ -99,10 +99,19 @@ class TraceRequest(BaseModel):
     layer_index: int
 
 
-@router.post("/requests/{request_id}/trace")
-async def trace_request(request: Request, request_id: str, body: TraceRequest):
-    """Run the minimal opt-in NNsight trace for a Transformers Lab request."""
-    conn = request.app.state.conn
+class DiagnosticsRequest(BaseModel):
+    target_token: str | None = None
+    top_k: int = 10
+
+
+def _resolve_trace_engine(state, request_id: str):
+    """Shared guards for the NNsight endpoints: returns (engine, prompt).
+
+    Raises the same HTTPExceptions as the single-layer trace: 404 (no request),
+    409 (engine ≠ transformers or model not loaded), 503 (NNsight unavailable),
+    422 (no prompt to re-run).
+    """
+    conn = state.conn
     row = conn.execute(
         "SELECT model, lab_session_id, prompt_or_messages_json FROM requests WHERE id = ?",
         (request_id,),
@@ -122,21 +131,49 @@ async def trace_request(request: Request, request_id: str, body: TraceRequest):
     if engine_name != "transformers":
         raise HTTPException(409, "NNsight direto está disponível somente para Transformers")
 
-    engine = request.app.state.transformer_engines.get(row["model"])
+    engine = state.transformer_engines.get(row["model"])
     if engine is None:
         raise HTTPException(409, "modelo Transformers não está carregado; envie uma mensagem primeiro")
-    if not engine.supports_trace():
-        raise HTTPException(503, "NNsight não está instalado ou o modelo não é compatível")
 
     prompt = json.loads(row["prompt_or_messages_json"] or "null")
     if prompt is None:
         raise HTTPException(422, "request sem prompt ou mensagens para reexecutar")
+    return engine, prompt
+
+
+@router.post("/requests/{request_id}/trace")
+async def trace_request(request: Request, request_id: str, body: TraceRequest):
+    """Run the minimal opt-in NNsight trace for a Transformers Lab request."""
+    engine, prompt = _resolve_trace_engine(request.app.state, request_id)
+    if not engine.supports_trace():
+        raise HTTPException(503, "NNsight não está instalado ou o modelo não é compatível")
     try:
         result = await asyncio.to_thread(engine.trace, prompt, body.layer_index)
     except (IndexError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(500, f"trace NNsight falhou: {exc}") from exc
+    return result
+
+
+@router.post("/requests/{request_id}/diagnostics")
+async def diagnostics_request(request: Request, request_id: str, body: DiagnosticsRequest):
+    """Correlational multi-layer diagnostic (logit lens) for a Transformers request.
+
+    Representational readout: WHERE a prediction becomes legible per layer — not
+    causal evidence that the layer computes/uses the feature. Read-only forward
+    pass; no NNsight required (that is reserved for the causal patching phase).
+    """
+    engine, prompt = _resolve_trace_engine(request.app.state, request_id)
+    if not engine.supports_diagnostics():
+        raise HTTPException(422, "arquitetura do modelo não suportada para diagnóstico de camadas")
+    try:
+        result = await asyncio.to_thread(
+            engine.trace_all_layers, prompt, body.target_token, body.top_k)
+    except (IndexError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"diagnóstico de camadas falhou: {exc}") from exc
     return result
 
 

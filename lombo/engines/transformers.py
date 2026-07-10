@@ -88,8 +88,12 @@ class TransformersEngine(Engine):
     def _format_prompt(self, prompt: str | list[dict[str, Any]]) -> str:
         if isinstance(prompt, str):
             return prompt
-        if not hasattr(self.tokenizer, "apply_chat_template"):
-            raise ValueError("This tokenizer does not support chat messages")
+        if not hasattr(self.tokenizer, "apply_chat_template") or \
+                getattr(self.tokenizer, "chat_template", None) is None:
+            # No chat template configured (e.g. base gpt2): fall back to a
+            # plain-text transcript instead of failing outright.
+            lines = [f"{m.get('role', 'user')}: {m.get('content', '')}" for m in prompt]
+            return "\n".join(lines) + "\nassistant:"
         return self.tokenizer.apply_chat_template(prompt, tokenize=False,
                                                   add_generation_prompt=True)
 
@@ -165,6 +169,115 @@ class TransformersEngine(Engine):
             "model": self.get_model_info(),
         }
 
+    def supports_diagnostics(self) -> bool:
+        """Return true when the logit-lens diagnostic can run on this model.
+
+        Unlike ``supports_trace`` this needs no NNsight: the logit lens is a
+        read-only forward pass. It only requires a known decoder-layer layout
+        (to hook every block) and an ``lm_head`` (to project residuals).
+        """
+        return self._layer_path() is not None and hasattr(self.model, "lm_head")
+
+    def trace_all_layers(
+        self,
+        prompt: str | list[dict[str, Any]],
+        target_token: str | None = None,
+        top_k: int = 10,
+    ) -> dict[str, Any]:
+        """Correlational multi-layer diagnostic (logit lens) in one forward pass.
+
+        A forward hook on every decoder block captures its last-token residual;
+        each residual is projected through the model's final norm and ``lm_head``
+        to report, per layer, the top predicted tokens, hidden-state norms and
+        (optionally) the rank/probability of a target token. Projecting the last
+        layer's residual reproduces the model's real logits exactly, so the lens
+        is anchored to the true prediction.
+
+        This measures WHERE a prediction becomes *readable*, not where a feature
+        is causally computed/used. Causal localisation (activation patching, the
+        NNsight strength) is a separate, heavier method left to a later phase.
+        No NNsight is involved here — the lens is a plain read-only pass.
+        """
+        if not self.supports_diagnostics():
+            raise RuntimeError(
+                "this model architecture is not supported for layer diagnostics"
+            )
+
+        torch = self._torch
+        layers, _ = self._layer_path()  # type: ignore[misc]
+        norm_path = self._final_norm_path()
+        final_norm = self._resolve_path(self.model, norm_path) if norm_path else None
+        lm_head = self.model.lm_head
+
+        text = self._format_prompt(prompt)
+        encoded = self.tokenizer(text, return_tensors="pt")
+        device = next(self.model.parameters()).device
+        encoded = {name: tensor.to(device) for name, tensor in encoded.items()}
+        token_ids = encoded["input_ids"][0].tolist()
+
+        target_token_id = None
+        if target_token:
+            # Resolve the target to a single leading token; a leading space is
+            # how most BPE/SentencePiece tokenizers encode a mid-sentence word.
+            ids = self.tokenizer.encode(" " + target_token, add_special_tokens=False) \
+                or self.tokenizer.encode(target_token, add_special_tokens=False)
+            target_token_id = int(ids[0]) if ids else None
+
+        # One forward pass; a hook per decoder block records its residual output.
+        residuals: list[Any] = []
+
+        def _capture(_module, _inputs, output):
+            residuals.append(output[0] if isinstance(output, tuple) else output)
+
+        handles = [layer.register_forward_hook(_capture) for layer in layers]
+        try:
+            with torch.inference_mode():
+                self.model(**encoded, use_cache=False)
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        layers_out = []
+        prev_hidden = None
+        with torch.inference_mode():
+            for index, residual in enumerate(residuals):
+                last = residual[0, -1]
+                hidden = last.detach().float()
+                normed = final_norm(last) if final_norm is not None else last
+                logits = lm_head(normed).detach().float()
+                probs = torch.softmax(logits, dim=-1)
+                top = torch.topk(probs, min(top_k, int(probs.shape[-1])))
+                entry: dict[str, Any] = {
+                    "index": index,
+                    "top": [
+                        {"token_id": int(tok), "token": self.tokenizer.decode([int(tok)]),
+                         "prob": float(prob)}
+                        for tok, prob in zip(top.indices.tolist(), top.values.tolist())
+                    ],
+                    "hidden_norm": float(hidden.norm()),
+                    "delta_norm": 0.0 if prev_hidden is None
+                                  else float((hidden - prev_hidden).norm()),
+                    "target_rank": None,
+                    "target_prob": None,
+                }
+                if target_token_id is not None:
+                    target_prob = probs[target_token_id]
+                    entry["target_prob"] = float(target_prob)
+                    # rank 1 == highest probability at this layer
+                    entry["target_rank"] = int((probs > target_prob).sum()) + 1
+                layers_out.append(entry)
+                prev_hidden = hidden
+
+        return {
+            "num_layers": len(layers_out),
+            "target_token": target_token,
+            "target_token_id": target_token_id,
+            "final_norm_applied": final_norm is not None,
+            "tokens": [int(token) for token in token_ids],
+            "layers": layers_out,
+            "model": self.get_model_info(),
+        }
+
     def _layer_path(self):
         """Return (layers, attribute path) for the few layouts we support."""
         candidates = (
@@ -177,6 +290,26 @@ class TransformersEngine(Engine):
                 layers = self._resolve_path(self.model, path)
                 if len(layers) > 0:
                     return layers, path
+            except (AttributeError, TypeError):
+                continue
+        return None
+
+    def _final_norm_path(self):
+        """Return the attribute path to the final norm for the logit lens.
+
+        Mirrors ``_layer_path``'s known layouts. Returns ``None`` when the norm
+        cannot be located, in which case the lens projects the raw residual —
+        an honest degradation the payload flags via ``final_norm_applied``.
+        """
+        candidates = (
+            ("model", "norm"),               # Llama, Mistral, Qwen and peers
+            ("transformer", "ln_f"),         # GPT-2 style
+            ("gpt_neox", "final_layer_norm"),  # GPT-NeoX/Pythia style
+        )
+        for path in candidates:
+            try:
+                if self._resolve_path(self.model, path) is not None:
+                    return path
             except (AttributeError, TypeError):
                 continue
         return None

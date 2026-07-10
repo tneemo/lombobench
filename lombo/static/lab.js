@@ -28,14 +28,16 @@ const state = {
 
 /* ================= abas ================= */
 function switchView(name) {
-  for (const v of ['lab', 'analysis']) {
+  for (const v of ['lab', 'analysis', 'diagnostics']) {
     $('#view-' + v).classList.toggle('active', v === name);
     $('#tab-' + v).setAttribute('aria-selected', String(v === name));
   }
   if (name === 'analysis') loadRequests();
+  if (name === 'diagnostics') loadDiagPairs();
 }
 $('#tab-lab').onclick = () => switchView('lab');
 $('#tab-analysis').onclick = () => switchView('analysis');
+$('#tab-diagnostics').onclick = () => switchView('diagnostics');
 
 /* ================= setup de sessão ================= */
 function paneConfigRow(i, preset) {
@@ -633,6 +635,175 @@ function showBundleDrawer(bundle, id) {
   };
   $('#drawer').classList.add('open');
 }
+
+/* ================= diagnóstico de camadas (logit lens correlacional) ================= */
+async function loadDiagPairs() {
+  const sel = $('#diag-pair');
+  const prev = sel.value;
+  const data = await (await fetch(`${API}/requests?limit=200`)).json();
+  const pairs = new Map();
+  for (const r of data.requests || []) {
+    if (!r.pair_id) continue;
+    let g = pairs.get(r.pair_id);
+    if (!g) { g = { pair_id: r.pair_id, model: r.model, when: r.started_at, conditions: [] }; pairs.set(r.pair_id, g); }
+    if (r.condition && !g.conditions.includes(r.condition)) g.conditions.push(r.condition);
+  }
+  const opts = ['<option value="">— selecione um par —</option>'];
+  for (const g of pairs.values()) {
+    const when = (g.when || '').slice(5, 16).replace('T', ' ');
+    const label = `${when} · ${g.model || '?'} · ${g.conditions.join(' × ') || g.pair_id.slice(0, 8)}`;
+    opts.push(`<option value="${esc(g.pair_id)}">${esc(label)}</option>`);
+  }
+  sel.innerHTML = opts.join('');
+  if (prev) sel.value = prev;
+}
+
+async function runDiagnostics() {
+  const pairId = $('#diag-pair').value;
+  const target = $('#diag-target').value.trim();
+  const status = $('#diag-status');
+  const results = $('#diag-results');
+  status.style.color = '';
+  if (!pairId) { status.textContent = 'Selecione um par.'; return; }
+  status.textContent = 'Carregando par…';
+  results.innerHTML = '';
+  try {
+    const cmp = await (await fetch(`${API}/compare?pair_id=${encodeURIComponent(pairId)}`)).json();
+    const requests = cmp.requests || [];
+    if (!requests.length) throw new Error('par sem requisições');
+    status.textContent = `Rodando logit lens em ${requests.length} condição(ões)…`;
+    const diags = [];
+    for (let i = 0; i < requests.length; i++) {
+      const r = requests[i];
+      const resp = await fetch(`${API}/requests/${r.id}/diagnostics`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ target_token: target || null, top_k: 10 }),
+      });
+      const d = await resp.json();
+      if (!resp.ok) throw new Error(d.detail || JSON.stringify(d));
+      diags.push({ diag: d, color: PANE_COLORS[i % PANE_COLORS.length],
+                   name: r.condition || `condição ${i + 1}` });
+    }
+    status.textContent = `Concluído — ${diags[0].diag.num_layers} camadas.`;
+    renderDiagnostics(results, diags, target);
+  } catch (err) {
+    status.textContent = `Erro: ${err.message}`;
+    status.style.color = 'var(--err)';
+  }
+}
+
+/* SVG multi-série: X = índice da camada, Y = valor por camada. */
+function diagLineChart(series, { ymax, title } = {}) {
+  const W = 680, H = 190, padL = 44, padR = 12, padT = 14, padB = 26;
+  const L = Math.max(1, ...series.map(s => s.points.length));
+  const top = ymax || Math.max(1e-9, ...series.flatMap(s => s.points));
+  const x = i => padL + (L <= 1 ? 0 : i * (W - padL - padR) / (L - 1));
+  const y = v => H - padB - (v / top) * (H - padT - padB);
+  const grid = [0, 0.5, 1].map(f => {
+    const gy = H - padB - f * (H - padT - padB);
+    return `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" class="ax-grid"/>` +
+      `<text x="${padL - 6}" y="${gy + 3}" class="ax-lbl" text-anchor="end">${(top * f).toFixed(top < 1 ? 2 : 0)}</text>`;
+  }).join('');
+  const paths = series.map(s => {
+    const d = s.points.map((v, i) => `${i ? 'L' : 'M'}${x(i).toFixed(1)},${y(v).toFixed(1)}`).join(' ');
+    const dots = s.points.map((v, i) =>
+      `<circle cx="${x(i).toFixed(1)}" cy="${y(v).toFixed(1)}" r="${s.marks && s.marks[i] ? 4 : 2}"
+        fill="${s.color}"><title>camada ${i}: ${v.toFixed(4)}${s.marks && s.marks[i] ? ' (rank 1)' : ''}</title></circle>`).join('');
+    return `<path d="${d}" fill="none" stroke="${s.color}" stroke-width="2"/>${dots}`;
+  }).join('');
+  const xlbl = `<text x="${padL}" y="${H - 6}" class="ax-lbl">camada 0</text>` +
+    `<text x="${W - padR}" y="${H - 6}" class="ax-lbl" text-anchor="end">camada ${L - 1}</text>`;
+  const legend = series.map(s =>
+    `<span class="diag-leg"><i style="background:${s.color}"></i>${esc(s.name)}</span>`).join('');
+  return `<div class="diag-chart"><div class="diag-chart-head">${esc(title || '')}${legend}</div>
+    <svg viewBox="0 0 ${W} ${H}" class="diag-svg" preserveAspectRatio="xMidYMid meet">
+      ${grid}${paths}${xlbl}</svg></div>`;
+}
+
+/* SVG barras: divergência por camada. */
+function diagBarChart(values, color, title) {
+  const W = 680, H = 150, padL = 44, padR = 12, padT = 14, padB = 26;
+  const L = Math.max(1, values.length);
+  const top = Math.max(1e-9, ...values);
+  const bw = (W - padL - padR) / L;
+  const y = v => H - padB - (v / top) * (H - padT - padB);
+  const grid = [0, 0.5, 1].map(f => {
+    const gy = H - padB - f * (H - padT - padB);
+    return `<line x1="${padL}" y1="${gy}" x2="${W - padR}" y2="${gy}" class="ax-grid"/>` +
+      `<text x="${padL - 6}" y="${gy + 3}" class="ax-lbl" text-anchor="end">${(top * f).toFixed(2)}</text>`;
+  }).join('');
+  const bars = values.map((v, i) =>
+    `<rect x="${(padL + i * bw + 1).toFixed(1)}" y="${y(v).toFixed(1)}" width="${Math.max(1, bw - 2).toFixed(1)}"
+      height="${(H - padB - y(v)).toFixed(1)}" fill="${color}"><title>camada ${i}: ${v.toFixed(4)}</title></rect>`).join('');
+  const xlbl = `<text x="${padL}" y="${H - 6}" class="ax-lbl">camada 0</text>` +
+    `<text x="${W - padR}" y="${H - 6}" class="ax-lbl" text-anchor="end">camada ${L - 1}</text>`;
+  return `<div class="diag-chart"><div class="diag-chart-head">${esc(title || '')}</div>
+    <svg viewBox="0 0 ${W} ${H}" class="diag-svg" preserveAspectRatio="xMidYMid meet">
+      ${grid}${bars}${xlbl}</svg></div>`;
+}
+
+function diagLayerTable(entry, target) {
+  const d = entry.diag;
+  const rows = d.layers.map(l => {
+    const chips = l.top.slice(0, 6).map(t =>
+      `<span class="tok-chip" style="opacity:${(0.2 + 0.8 * t.prob).toFixed(2)}"
+        title="${esc(t.token)} · ${(t.prob * 100).toFixed(1)}% · id ${t.token_id}">${esc(t.token)}</span>`).join('');
+    const tgt = target
+      ? `<td class="num">${l.target_rank ?? '—'}</td><td class="num">${l.target_prob != null ? (l.target_prob * 100).toFixed(2) + '%' : '—'}</td>`
+      : '';
+    return `<tr class="${l.target_rank === 1 ? 'emerged' : ''}">
+      <td class="num">${l.index}</td><td class="chips">${chips}</td>
+      <td class="num">${l.hidden_norm.toFixed(1)}</td><td class="num">${l.delta_norm.toFixed(1)}</td>${tgt}</tr>`;
+  }).join('');
+  const m = d.model || {};
+  const normFlag = d.final_norm_applied ? '' :
+    ' · <span class="warn-inline">norma final não localizada (lens sobre resíduo cru)</span>';
+  return `<div class="diag-cond">
+    <h3><i class="diag-dot" style="background:${entry.color}"></i>${esc(entry.name)}
+      <small>${esc(m.architecture || '')} · ${esc(m.dtype || '')}${normFlag}</small></h3>
+    <table class="diag-layers"><thead><tr>
+      <th>camada</th><th>top tokens (logit lens)</th><th>‖h‖</th><th>Δ</th>
+      ${target ? '<th>rank(alvo)</th><th>p(alvo)</th>' : ''}</tr></thead>
+      <tbody>${rows}</tbody></table></div>`;
+}
+
+function renderDiagnostics(container, diags, target) {
+  const parts = [];
+  if (target) {
+    const series = diags.map(e => ({
+      name: e.name, color: e.color,
+      points: e.diag.layers.map(l => l.target_prob || 0),
+      marks: e.diag.layers.map(l => l.target_rank === 1),
+    }));
+    parts.push(diagLineChart(series, {
+      title: `p(“${target}”) por camada — onde a hipótese emerge (● = rank 1) · `,
+    }));
+  }
+  if (diags.length === 2) {
+    const [a, b] = diags;
+    const n = Math.min(a.diag.layers.length, b.diag.layers.length);
+    const div = [];
+    for (let i = 0; i < n; i++) {
+      if (target) {
+        div.push(Math.abs((a.diag.layers[i].target_prob || 0) - (b.diag.layers[i].target_prob || 0)));
+      } else {
+        const sa = new Set(a.diag.layers[i].top.map(t => t.token_id));
+        const overlap = b.diag.layers[i].top.filter(t => sa.has(t.token_id)).length;
+        div.push(1 - overlap / Math.max(1, b.diag.layers[i].top.length));
+      }
+    }
+    parts.push(diagBarChart(div, 'var(--accent)',
+      target ? `Divergência |p_A − p_B| por camada — onde as condições se separam · `
+             : `Divergência do top-k (1 − sobreposição) por camada · `));
+  } else if (diags.length > 2) {
+    parts.push('<p class="notice-inline">Divergência calculada apenas para pares de 2 condições; condições extras aparecem só nas tabelas abaixo.</p>');
+  }
+  parts.push(...diags.map(e => diagLayerTable(e, target)));
+  container.innerHTML = parts.join('');
+}
+
+$('#btn-diagnose').onclick = runDiagnostics;
+$('#btn-diag-reload').onclick = loadDiagPairs;
 
 /* ================= análise ================= */
 async function loadRequests() {

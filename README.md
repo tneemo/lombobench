@@ -77,15 +77,32 @@ pip install -e ".[transformers,nnsight]"
 ```
 
 ```python
+# trace de camada única (opt-in NNsight):
 if engine.supports_trace():
     trace = engine.trace("Explique entropia.", layer_index=0)
+
+# diagnóstico correlacional multi-camada (logit lens, sem NNsight):
+if engine.supports_diagnostics():
+    diag = engine.trace_all_layers("Explique entropia.", target_token="ordem")
 ```
 
-Esse trace executa um único forward pass e captura somente a saída da camada
+`trace` executa um único forward pass e captura somente a saída da camada
 indicada e os logits da última posição. O retorno serializável contém o índice
 da camada, shape e dtype da ativação, IDs dos tokens, logits do último token e
-metadados do modelo. Attention, MLP, cache, ablation e patching permanecem fora
-do escopo.
+metadados do modelo.
+
+`trace_all_layers` (diagnóstico de camadas, exposto no Lab pela aba
+**Diagnóstico**) faz o **logit lens** numa única passada **read-only** — um
+forward hook por bloco captura o resíduo, projetado pela norma final + `lm_head`
+(não usa NNsight; a leitura é passiva). Reporta, por camada, os top-k tokens, as
+normas do hidden state (‖h‖ e Δ residual) e — se um token-alvo for informado —
+seu rank e probabilidade. Projetar o resíduo da última camada reproduz os logits
+reais do modelo, ancorando o lens à predição verdadeira. Isso mostra **em qual
+camada uma predição fica *legível*** (leitura representacional), o que **não** é
+o mesmo que provar que a camada *computa* ou *usa* a feature. A resposta causal
+("utilizada") exige intervenção — activation patching, onde o NNsight de fato
+brilha — prevista para a próxima fase. Attention, MLP, cache, ablation, patching
+e SAEs permanecem fora do escopo desta fase.
 
 ### Lombo Lab (`http://127.0.0.1:11435/_lombo/`)
 
@@ -132,5 +149,7 @@ captura; o Lab exibe aviso permanente.
 ```
 
 Fora do escopo desta fase (preparado no schema): regulador autônomo (Fase 2),
-logprobs por token, avaliações por modelo juiz, interpretabilidade via NNsight
-(Fase 3 — `requests.request_body_raw` + seed + digest garantem o replay).
+logprobs por token, avaliações por modelo juiz. A interpretabilidade via NNsight
+(Fase 3) já entrega o diagnóstico **correlacional** de camadas (logit lens
+multi-camada, aba Diagnóstico); o diagnóstico **causal** por activation patching
+é o próximo passo (`requests.request_body_raw` + seed + digest garantem o replay).

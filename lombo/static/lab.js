@@ -70,14 +70,25 @@ async function loadModels() {
     const data = await (await fetch(`${API}/lab/models`)).json();
     state.models = (data.models || []).map(m => m.name);
   } catch { state.models = []; }
-  $('#s-model').innerHTML = state.models.map(m => `<option>${m}</option>`).join('')
-    || '<option value="">(nenhum modelo no Ollama)</option>';
+  $('#ollama-models').innerHTML = state.models.map(m => `<option value="${esc(m)}">`).join('');
+  if (!$('#s-model').value && state.models.length) $('#s-model').value = state.models[0];
 }
 
+$('#s-engine').onchange = () => {
+  const hf = $('#s-engine').value === 'transformers';
+  $('#s-model').placeholder = hf ? 'ex.: Qwen/Qwen2.5-0.5B-Instruct' : 'modelo Ollama';
+  if (hf) $('#s-model').value = '';
+  else if (!$('#s-model').value && state.models.length) $('#s-model').value = state.models[0];
+};
+
 $('#btn-create-session').onclick = async () => {
-  const base_config = { model: $('#s-model').value };
+  const base_config = { engine: $('#s-engine').value, model: $('#s-model').value.trim() };
+  if (!base_config.model) { alert('Informe o modelo.'); return; }
   if ($('#s-temp').value !== '') base_config.temperature = parseFloat($('#s-temp').value);
   if ($('#s-seed').value !== '') base_config.seed = parseInt($('#s-seed').value, 10);
+  if ($('#s-max-tokens').value !== '') {
+    base_config.num_predict = parseInt($('#s-max-tokens').value, 10);
+  }
   if ($('#s-system').value.trim()) base_config.system = $('#s-system').value.trim();
   const panes = [...$('#pane-configs').children].map(row => ({
     name: $('.p-name', row).value.trim() || '?',
@@ -252,6 +263,8 @@ async function sendTurn(texts, turnId, replicate) {
   const injectedSeed = Math.floor(Math.random() * 2 ** 31);
   const turn = makeTurnDom(texts, { texts, turnId }, replicate);
 
+  const statusPoll = state.session.base_config.engine === 'transformers'
+    ? pollTransformerStatus(state.session.base_config.model) : null;
   await Promise.all(state.panes.map((pane, i) => {
     const prompt = texts[i];
     const condition = pane.condition +
@@ -259,6 +272,7 @@ async function sendTurn(texts, turnId, replicate) {
     return streamToCell(pane, prompt, condition, turn.cells[pane.idx],
                         { turnId, pairId, replicate, seed: injectedSeed });
   }));
+  if (statusPoll) statusPoll.stop();
 
   await attachPairData(turn, pairId);
   state.sending = false;
@@ -266,12 +280,32 @@ async function sendTurn(texts, turnId, replicate) {
   $('#composer-status').textContent = '';
 }
 
+function pollTransformerStatus(model) {
+  let active = true;
+  const tick = async () => {
+    try {
+      const resp = await fetch(`${API}/lab/engine-status?model=${encodeURIComponent(model)}`);
+      const status = await resp.json();
+      if (active && status.state !== 'idle') {
+        $('#composer-status').textContent = status.message +
+          (status.state === 'loading' ? '…' : '');
+      }
+    } catch { /* a requisição principal exibirá o erro de conexão */ }
+    if (active) setTimeout(tick, 750);
+  };
+  tick();
+  return { stop() { active = false; } };
+}
+
 function buildRequest(pane, prompt, seed) {
   const base = state.session.base_config;
+  const engine = base.engine || 'ollama';
   const model = pane.variable === 'model' ? pane.value : base.model;
   const options = {};
   if (base.temperature !== undefined) options.temperature = base.temperature;
   options.seed = base.seed !== undefined ? base.seed : seed;
+  if (base.num_predict !== undefined) options.num_predict = base.num_predict;
+  else if (engine === 'transformers') options.num_predict = 256;
   if (pane.variable && !NON_OPTION_VARIABLES.has(pane.variable)) {
     options[pane.variable] = NUMERIC_PARAMS.has(pane.variable)
       ? Number(pane.value) : pane.value;
@@ -283,14 +317,15 @@ function buildRequest(pane, prompt, seed) {
   if (system) messages.push({ role: 'system', content: system });
   if (state.session.mode === 'branched') messages.push(...pane.history);
   messages.push({ role: 'user', content: prompt });
-  return { model, options, messages };
+  return { engine, model, options, messages };
 }
 
 async function streamToCell(pane, prompt, condition, cell, meta) {
-  const { model, options, messages } = buildRequest(pane, prompt, meta.seed);
+  const { engine, model, options, messages } = buildRequest(pane, prompt, meta.seed);
   const headers = {
     'Content-Type': 'application/json',
     'X-Lombo-Origin': 'lab',
+    'X-Lombo-Engine': engine,
     'X-Lombo-Session': state.session.id,
     'X-Lombo-Turn': meta.turnId,
     'X-Lombo-Pair': meta.pairId,
@@ -331,6 +366,11 @@ async function streamToCell(pane, prompt, condition, cell, meta) {
         if (!line.trim()) continue;
         let obj;
         try { obj = JSON.parse(line); } catch { continue; }
+        if (obj.error) {
+          appendError(cell, obj.error);
+          bodyEl.textContent = '';
+          continue;
+        }
         const msg = obj.message || {};
         if (msg.thinking) { thinkingText += msg.thinking; setThinking(cell, thinkingText); }
         if (msg.content) responseText += msg.content;
@@ -626,7 +666,8 @@ $('#btn-filter').onclick = loadRequests;
 async function openDrawer(id) {
   const r = await (await fetch(`${API}/requests/${id}`)).json();
   state.currentDrawerRequest = r;
-  $('#btn-inspect').onclick = () => openNNsightBundle(null, r);
+  $('#btn-inspect').textContent = 'Executar trace NNsight';
+  $('#btn-inspect').onclick = () => runNNsightTrace(r);
   $('#d-model').textContent = r.model || '?';
   $('#d-id').textContent = r.id;
   const c = $('#drawer-content');
@@ -696,6 +737,49 @@ async function openDrawer(id) {
     labelsRow.appendChild(chip);
   }
   $('#drawer').classList.add('open');
+}
+
+async function runNNsightTrace(r) {
+  const input = prompt('Índice da camada para capturar:', '0');
+  if (input === null) return;
+  const layerIndex = Number(input);
+  if (!Number.isInteger(layerIndex)) { alert('Informe um índice inteiro.'); return; }
+  const btn = $('#btn-inspect');
+  btn.disabled = true;
+  btn.textContent = 'Executando trace…';
+  const content = $('#drawer-content');
+  const status = document.createElement('p');
+  status.className = 'notice-inline';
+  status.textContent = `Executando NNsight na camada ${layerIndex}…`;
+  content.prepend(status);
+  try {
+    const resp = await fetch(`${API}/requests/${r.id}/trace`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ layer_index: layerIndex }),
+    });
+    const result = await resp.json();
+    if (!resp.ok) throw new Error(result.detail || JSON.stringify(result));
+    const logits = result.last_token_logits || [];
+    const summary = {
+      layer_index: result.layer_index,
+      activation_shape: result.activation_shape,
+      activation_dtype: result.activation_dtype,
+      tokens: result.tokens,
+      last_token_logits_count: logits.length,
+      last_token_logits_preview: logits.slice(0, 20),
+      model: result.model,
+    };
+    status.textContent = 'Trace NNsight concluído.';
+    const pre = document.createElement('pre');
+    pre.textContent = JSON.stringify(summary, null, 2);
+    status.after(pre);
+  } catch (err) {
+    status.textContent = `Erro: ${err.message}`;
+    status.style.color = 'var(--err)';
+  } finally {
+    btn.disabled = false;
+    btn.textContent = 'Executar trace NNsight';
+  }
 }
 $('#btn-close-drawer').onclick = () => $('#drawer').classList.remove('open');
 document.addEventListener('keydown', e => {

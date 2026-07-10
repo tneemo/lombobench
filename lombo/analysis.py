@@ -7,6 +7,7 @@ inferido / confirmado) — a análise nunca funde as camadas.
 from __future__ import annotations
 
 import csv
+import asyncio
 import io
 import json
 import sqlite3
@@ -92,6 +93,51 @@ async def get_request(request: Request, request_id: str):
 class HumanEvaluation(BaseModel):
     labels: list[str]
     note: str | None = None
+
+
+class TraceRequest(BaseModel):
+    layer_index: int
+
+
+@router.post("/requests/{request_id}/trace")
+async def trace_request(request: Request, request_id: str, body: TraceRequest):
+    """Run the minimal opt-in NNsight trace for a Transformers Lab request."""
+    conn = request.app.state.conn
+    row = conn.execute(
+        "SELECT model, lab_session_id, prompt_or_messages_json FROM requests WHERE id = ?",
+        (request_id,),
+    ).fetchone()
+    if row is None:
+        raise HTTPException(404, "request não encontrada")
+
+    engine_name = "ollama"
+    if row["lab_session_id"]:
+        session = conn.execute(
+            "SELECT base_config_json FROM lab_sessions WHERE id = ?",
+            (row["lab_session_id"],),
+        ).fetchone()
+        if session:
+            engine_name = json.loads(session["base_config_json"] or "{}").get(
+                "engine", "ollama")
+    if engine_name != "transformers":
+        raise HTTPException(409, "NNsight direto está disponível somente para Transformers")
+
+    engine = request.app.state.transformer_engines.get(row["model"])
+    if engine is None:
+        raise HTTPException(409, "modelo Transformers não está carregado; envie uma mensagem primeiro")
+    if not engine.supports_trace():
+        raise HTTPException(503, "NNsight não está instalado ou o modelo não é compatível")
+
+    prompt = json.loads(row["prompt_or_messages_json"] or "null")
+    if prompt is None:
+        raise HTTPException(422, "request sem prompt ou mensagens para reexecutar")
+    try:
+        result = await asyncio.to_thread(engine.trace, prompt, body.layer_index)
+    except (IndexError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"trace NNsight falhou: {exc}") from exc
+    return result
 
 
 @router.post("/requests/{request_id}/evaluations")

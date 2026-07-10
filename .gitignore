@@ -1,0 +1,6 @@
+.venv/
+__pycache__/
+*.pyc
+lombo.db
+lombo.db-*
+.pytest_cache/

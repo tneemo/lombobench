@@ -142,23 +142,23 @@
 
   <!-- ============ DIAGNÓSTICO DE CAMADAS ============ -->
   <section class="view diagnostics" id="view-diagnostics">
-    <div class="toolbar">
-      <label class="field inline"><span class="label">Par (condição A × B)</span>
+    <header class="diag-toolbar">
+      <div class="diag-title"><span class="eyebrow">Interpretabilidade / logit lens</span><strong>Diagnóstico de camadas</strong></div>
+      <div class="diag-controls">
+      <label class="field inline"><span class="label">Execução / condições</span>
         <select id="diag-pair"><option value="">— selecione um par —</option></select></label>
-      <label class="field inline"><span class="label">Token-alvo (opcional)</span>
-        <input id="diag-target" placeholder="ex.: Paris"></label>
+      <label class="field inline diag-target-field"><span class="label">Token-alvo</span>
+        <input id="diag-target" placeholder="Opcional · ex.: Paris"></label>
       <button class="btn primary" id="btn-diagnose">Diagnosticar</button>
-      <button class="btn" id="btn-diag-reload" title="Recarregar a lista de pares">↻</button>
-      <span class="notice-inline" id="diag-status"></span>
+      <button class="btn icon-btn" id="btn-diag-reload" title="Recarregar execuções" aria-label="Recarregar execuções">↻</button>
+      <button class="btn" id="btn-diag-help" aria-expanded="false">Metodologia</button>
+      </div>
+      <span class="diag-status" id="diag-status" role="status" aria-live="polite"></span>
+    </header>
+    <div class="diag-method" id="diag-method" hidden>
+      <strong>Evidência correlacional.</strong> O logit lens indica onde uma previsão se torna legível ao projetar o residual pela norma final e <code>lm_head</code>. Não localiza causalmente onde a feature foi computada ou usada.
     </div>
-    <p class="notice-inline diag-notice">
-      <b>Leitura representacional (logit lens):</b> mostra em qual camada a predição fica
-      <i>legível</i> ao projetar o resíduo de cada camada pela norma final + <code>lm_head</code>.
-      <b>Não</b> é evidência causal de que a camada computa ou usa a feature — isso exige
-      intervenção (activation patching), previsto para a próxima fase. As camadas de parâmetros
-      nunca são fundidas e nenhuma ativação bruta sai do backend.
-    </p>
-    <div id="diag-results"></div>
+    <div id="diag-results" class="diag-results" aria-live="polite"></div>
   </section>
 </main>
 </div>
@@ -181,5 +181,6 @@
 </aside>
 
 <script src="/_lombo/app/lab.js"></script>
+<script src="/_lombo/app/diagnostics.js"></script>
 </body>
 </html>

@@ -257,6 +257,9 @@ class TransformersEngine(Engine):
                     "hidden_norm": float(hidden.norm()),
                     "delta_norm": 0.0 if prev_hidden is None
                                   else float((hidden - prev_hidden).norm()),
+                    # Full-vocabulary entropy; the client must not approximate it
+                    # from the deliberately truncated top-k payload.
+                    "entropy": float(-(probs * probs.clamp_min(1e-12).log()).sum()),
                     "target_rank": None,
                     "target_prob": None,
                 }

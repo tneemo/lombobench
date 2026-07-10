@@ -11,6 +11,19 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = ["pytest>=8"]
+transformers = [
+    "torch>=2.2",
+    "transformers>=4.40",
+    "accelerate>=0.29",
+]
+nnsight = [
+    "nnsight>=0.5",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.setuptools.packages.find]
+where = ["."]
+include = ["lombo*"]
+exclude = ["nnsight*", "tests*"]

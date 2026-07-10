@@ -42,6 +42,51 @@ Metadados experimentais via headers (removidos antes do repasse):
 `X-Lombo-Experiment`, `X-Lombo-Condition`, `X-Lombo-Pair`, `X-Lombo-Replicate`,
 `X-Lombo-No-Log` (não grava a requisição).
 
+### Engines de inferência
+
+O contrato em `lombo.engines.Engine` separa o benchmark do runtime. Ele expõe
+`generate`, `tokenize`, `get_model_info` e o gancho `supports_trace`; os
+resultados usam os mesmos campos normalizados da captura atual. O proxy Ollama
+existente continua sendo o caminho padrão e não foi alterado.
+
+Para inferência local com pesos Hugging Face/PyTorch (não GGUF):
+
+```powershell
+pip install -e ".[transformers]"
+```
+
+```python
+from lombo.engines import TransformersEngine
+
+engine = TransformersEngine("Qwen/Qwen2.5-0.5B-Instruct")
+result = engine.generate(
+    [{"role": "user", "content": "Explique entropia em uma frase."}],
+    seed=42, temperature=0.7, top_p=0.9, top_k=40, max_new_tokens=80,
+)
+print(result["response_text"])
+```
+
+O engine seleciona dispositivos com `device_map="auto"`, usa BF16 quando a
+GPU oferece suporte (FP16 em outras GPUs e FP32 em CPU) e carrega as
+dependências pesadas somente ao ser instanciado.
+
+O primeiro suporte opt-in ao NNsight é instalado separadamente:
+
+```powershell
+pip install -e ".[transformers,nnsight]"
+```
+
+```python
+if engine.supports_trace():
+    trace = engine.trace("Explique entropia.", layer_index=0)
+```
+
+Esse trace executa um único forward pass e captura somente a saída da camada
+indicada e os logits da última posição. O retorno serializável contém o índice
+da camada, shape e dtype da ativação, IDs dos tokens, logits do último token e
+metadados do modelo. Attention, MLP, cache, ablation e patching permanecem fora
+do escopo.
+
 ### Lombo Lab (`http://127.0.0.1:11435/_lombo/`)
 
 Painéis de chat lado a lado com **uma variável manipulada por painel**

@@ -34,12 +34,20 @@
       <div class="grid">
         <label class="field"><span class="label">Título</span>
           <input id="s-title" placeholder="ex.: temperatura 0.2 × 0.8"></label>
+        <label class="field"><span class="label">Engine</span>
+          <select id="s-engine">
+            <option value="ollama">Ollama</option>
+            <option value="transformers">Transformers (Hugging Face)</option>
+          </select></label>
         <label class="field"><span class="label">Modelo base</span>
-          <select id="s-model"></select></label>
+          <input id="s-model" list="ollama-models" placeholder="modelo Ollama">
+          <datalist id="ollama-models"></datalist></label>
         <label class="field"><span class="label">Temperature base</span>
           <input id="s-temp" type="number" step="0.1" placeholder="(default do modelo)"></label>
         <label class="field"><span class="label">Seed base</span>
           <input id="s-seed" type="number" placeholder="(auto por rodada)"></label>
+        <label class="field"><span class="label">Máx. novos tokens</span>
+          <input id="s-max-tokens" type="number" min="1" placeholder="256 em Transformers"></label>
       </div>
       <label class="field" style="margin-top:12px"><span class="label">System prompt base (opcional)</span>
         <textarea id="s-system" rows="2"></textarea></label>
@@ -128,8 +136,8 @@
     <span class="id" id="d-id"></span>
     <span class="spacer" style="flex:1"></span>
     <button class="btn" id="btn-inspect"
-      title="Monta um JSON com prompt, seed, params e digest desta execução — pronto para rodar num script NNsight à parte. Não roda ativações aqui.">
-      Abrir pacote NNsight</button>
+      title="Executa o trace NNsight mínimo no modelo Transformers carregado.">
+      Executar trace NNsight</button>
     <button class="btn" id="btn-close-drawer">Fechar</button>
   </header>
   <div class="content" id="drawer-content"></div>

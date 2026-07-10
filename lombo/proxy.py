@@ -72,6 +72,9 @@ def create_app(config: LomboConfig) -> FastAPI:
         app.state.writer = db.DbWriter(app.state.conn)
         app.state.writer.start()
         app.state.client = httpx.AsyncClient(base_url=config.ollama_url, timeout=None)
+        app.state.transformer_engines = {}
+        app.state.transformer_engine_status = {}
+        app.state.transformer_engine_lock = asyncio.Lock()
         app.state.baseline_cache = {}
         env = await environment.snapshot(config.ollama_url)
         app.state.environment_id = db.get_or_create_environment(app.state.conn, env)
@@ -124,6 +127,9 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
         if lname == "x-lombo-no-log":
             no_log = True
             continue
+        if lname == "x-lombo-engine":
+            meta["engine"] = value.lower()
+            continue
         if lname in _LOMBO_HEADERS:
             # texto livre (ex.: condition) chega percent-encoded — headers só
             # aceitam ISO-8859-1; unquote() é no-op em valores já ASCII simples.
@@ -139,17 +145,25 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
         and endpoint in capture.CAPTURED_ENDPOINTS
     )
 
-    upstream_req = client.build_request(request.method, endpoint,
-                                        headers=fwd_headers, content=body)
     started_at = _now_iso()
     started_perf = time.perf_counter()
-    try:
-        upstream = await client.send(upstream_req, stream=True)
-    except httpx.HTTPError as exc:
-        error = f"ollama inacessível: {exc}"
-        if should_capture:
-            _finalize_error(app, endpoint, body, meta, started_at, error)
-        return JSONResponse({"error": error}, status_code=502)
+    engine_name = meta.get("engine", "ollama")
+    if (engine_name == "transformers" and request.method == "POST"
+            and endpoint in {"/api/generate", "/api/chat"}):
+        upstream = await _transformers_upstream(app, endpoint, body)
+    else:
+        if engine_name != "ollama":
+            return JSONResponse({"error": f"engine desconhecido: {engine_name}"},
+                                status_code=400)
+        upstream_req = client.build_request(request.method, endpoint,
+                                            headers=fwd_headers, content=body)
+        try:
+            upstream = await client.send(upstream_req, stream=True)
+        except httpx.HTTPError as exc:
+            error = f"ollama inacessível: {exc}"
+            if should_capture:
+                _finalize_error(app, endpoint, body, meta, started_at, error)
+            return JSONResponse({"error": error}, status_code=502)
 
     resp_headers = {k: v for k, v in upstream.headers.items()
                     if k.lower() not in _SKIP_RESPONSE_HEADERS}
@@ -157,7 +171,8 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
     if not should_capture:
         async def passthrough():
             try:
-                async for chunk in upstream.aiter_raw():
+                async for chunk in _response_chunks(
+                        upstream, buffered=engine_name == "transformers"):
                     yield chunk
             finally:
                 await upstream.aclose()
@@ -175,7 +190,8 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
     async def tee():
         error = None
         try:
-            async for chunk in upstream.aiter_raw():
+            async for chunk in _response_chunks(
+                    upstream, buffered=engine_name == "transformers"):
                 if chunk and timing["first_token_perf"] is None:
                     timing["first_token_perf"] = time.perf_counter()
                     timing["first_token_at"] = _now_iso()
@@ -228,11 +244,17 @@ async def _finalize(app, endpoint, body, req_body, req_info, meta, acc,
     try:
         result = acc.result()
         model = req_info.get("model")
-        modelfile_params = await _ensure_baseline(app, model) if model else {}
-        inferred, diff, _ = bl.layer_params(
-            req_info["requested_params_ollama"], modelfile_params)
+        if meta.get("engine", "ollama") == "ollama":
+            modelfile_params = await _ensure_baseline(app, model) if model else {}
+            inferred, diff, _ = bl.layer_params(
+                req_info["requested_params_ollama"], modelfile_params)
+        else:
+            inferred = {key: {"value": value, "source": "request", "inferred": True}
+                        for key, value in req_info["requested_params"].items()}
+            diff = {}
         confirmed = bl.confirmed_from_response(result["final_chunk"])
-        observed = await _observed_runtime(app)
+        observed = (await _observed_runtime(app)
+                    if meta.get("engine", "ollama") == "ollama" else None)
 
         metrics = result["metrics"]
         tps = capture.tokens_per_second(metrics)
@@ -351,6 +373,74 @@ async def _observed_runtime(app) -> dict | None:
     except Exception:
         pass
     return None
+
+
+async def _transformers_upstream(app, endpoint: str, body: bytes) -> httpx.Response:
+    """Run a local HF model and adapt its result to the native Ollama shape."""
+    request = httpx.Request("POST", f"http://transformers.local{endpoint}")
+    try:
+        payload = json.loads(body)
+        model_name = payload.get("model")
+        if not model_name:
+            raise ValueError("o campo model é obrigatório para Transformers")
+        async with app.state.transformer_engine_lock:
+            engine = app.state.transformer_engines.get(model_name)
+            if engine is None:
+                from .engines import TransformersEngine
+                app.state.transformer_engine_status[model_name] = {
+                    "state": "loading",
+                    "message": "baixando/carregando modelo Hugging Face",
+                }
+                try:
+                    engine = await asyncio.to_thread(TransformersEngine, model_name)
+                    app.state.transformer_engines[model_name] = engine
+                    app.state.transformer_engine_status[model_name] = {
+                        "state": "ready", "message": "modelo pronto",
+                    }
+                except Exception as exc:
+                    app.state.transformer_engine_status[model_name] = {
+                        "state": "error", "message": str(exc),
+                    }
+                    raise
+
+        prompt = (payload.get("messages", []) if endpoint == "/api/chat"
+                  else payload.get("prompt", ""))
+        options = payload.get("options") or {}
+        result = await asyncio.to_thread(engine.generate, prompt, **options)
+        if result.get("parse_error"):
+            message = result["parse_error"]
+            app.state.transformer_engine_status[model_name] = {
+                "state": "error", "message": message,
+            }
+            content = json.dumps({"error": message}, ensure_ascii=False).encode()
+            return httpx.Response(500, content=content, request=request,
+                                  headers={"content-type": "application/json"})
+        final = dict(result.get("final_chunk") or {})
+        if endpoint == "/api/chat":
+            final["message"] = {"role": "assistant",
+                                "content": result.get("response_text") or ""}
+        else:
+            final["response"] = result.get("response_text") or ""
+        final.setdefault("model", model_name)
+        final.setdefault("done", True)
+        content = json.dumps(final, ensure_ascii=False).encode() + b"\n"
+        return httpx.Response(200, content=content, request=request,
+                              headers={"content-type": "application/x-ndjson"})
+    except Exception as exc:
+        content = json.dumps({"error": f"TransformersEngine: {exc}"},
+                             ensure_ascii=False).encode()
+        return httpx.Response(500, content=content, request=request,
+                              headers={"content-type": "application/json"})
+
+
+async def _response_chunks(upstream: httpx.Response, buffered: bool = False):
+    """Iterate live upstream streams or replay a buffered local response once."""
+    if buffered:
+        if upstream.content:
+            yield upstream.content
+        return
+    async for chunk in upstream.aiter_raw():
+        yield chunk
 
 
 def _dumps(obj) -> str:

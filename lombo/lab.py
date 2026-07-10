@@ -122,6 +122,15 @@ async def list_models(request: Request):
     return resp.json()
 
 
+@router.get("/lab/engine-status")
+async def engine_status(request: Request, model: str):
+    """Current on-demand loading state for a Hugging Face model."""
+    status = request.app.state.transformer_engine_status.get(model)
+    if status is None:
+        status = {"state": "idle", "message": "modelo ainda não carregado"}
+    return {"engine": "transformers", "model": model, **status}
+
+
 def _session_dict(row) -> dict:
     return {"id": row["id"], "created_at": row["created_at"], "title": row["title"],
             "mode": row["mode"],

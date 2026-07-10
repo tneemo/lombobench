@@ -153,6 +153,16 @@ function openSession(session, pastRequests) {
   $('#chk-sync').checked = !state.panes.some(p => p.variable === 'prompt');
 }
 
+// Casa um request com o painel que o gerou. branch_id = "pane-{idx}" é
+// enviado em TODO envio (não só no modo ramificado) só pra isso — é a única
+// forma confiável, já que duas panes podem ter a mesma condition (dois
+// modelos comparados, só um com variável declarada, etc.). condition entra
+// só como fallback pra registros antigos gravados antes desse identificador.
+function findReqForPane(list, pane) {
+  return list.find(r => r.branch_id === `pane-${pane.idx}`) ||
+         list.find(r => r.condition === pane.condition);
+}
+
 function renderPastTurns(requests) {
   const byTurn = new Map();
   for (const r of requests) {
@@ -162,7 +172,7 @@ function renderPastTurns(requests) {
   }
   for (const group of byTurn.values()) {
     const texts = state.panes.map(pane => {
-      const req = group.find(r => r.condition === pane.condition);
+      const req = findReqForPane(group, pane);
       if (!req) return '';
       try {
         const msgs = JSON.parse(req.prompt_or_messages_json || '[]');
@@ -172,7 +182,7 @@ function renderPastTurns(requests) {
     });
     const turn = makeTurnDom(texts, null, group[0].replicate || 1);
     for (const pane of state.panes) {
-      const req = group.find(r => r.condition === pane.condition);
+      const req = findReqForPane(group, pane);
       const cell = turn.cells[pane.idx];
       if (!req) { $('.body', cell).innerHTML = '<span class="empty">—</span>'; continue; }
       if (req.thinking_text) setThinking(cell, req.thinking_text);
@@ -183,7 +193,7 @@ function renderPastTurns(requests) {
         time_to_first_token_ms: req.time_to_first_token_ms });
     }
     const respTexts = state.panes.map(pane => {
-      const req = group.find(r => r.condition === pane.condition);
+      const req = findReqForPane(group, pane);
       return req ? (req.response_text || '') : '';
     });
     if (respTexts.filter(Boolean).length >= 2)
@@ -289,9 +299,13 @@ async function streamToCell(pane, prompt, condition, cell, meta) {
     'X-Lombo-Condition': encodeURIComponent(condition),
     'X-Lombo-Replicate': String(meta.replicate),
   };
-  if (state.session.mode === 'branched') {
-    headers['X-Lombo-Branch'] = `pane-${pane.idx}`;
-    if (pane.lastRequestId) headers['X-Lombo-Parent'] = pane.lastRequestId;
+  // identifica o painel de origem independente do texto de condition — duas
+  // panes podem ter a MESMA condition (ex.: dois modelos, só um deles com
+  // variável declarada), então casar por condition sozinho gruda as duas no
+  // mesmo registro. branch_id também encadeia o histórico no modo ramificado.
+  headers['X-Lombo-Branch'] = `pane-${pane.idx}`;
+  if (state.session.mode === 'branched' && pane.lastRequestId) {
+    headers['X-Lombo-Parent'] = pane.lastRequestId;
   }
   const bodyEl = $('.body', cell);
   bodyEl.innerHTML = '<span class="cursor">▍</span>';
@@ -355,8 +369,7 @@ async function attachPairData(turn, pairId) {
   }
   for (const pane of state.panes) {
     const cell = turn.cells[pane.idx];
-    const req = requests.find(r => (r.condition || '').startsWith(pane.condition)) ||
-                requests.find(r => r.condition === pane.condition);
+    const req = findReqForPane(requests, pane);
     const local = cell.dataset.metrics ? JSON.parse(cell.dataset.metrics) : {};
     finishCellFooter(cell, req ? {
       id: req.id, eval_count: req.eval_count,

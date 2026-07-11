@@ -1,0 +1,123 @@
+/* views.css — aditivo apenas; lab.css permanece intocado.
+   Estilos para os painéis novos (overview/analysis/experiments/performance/
+   activations/benchmarks) e para os contêineres montados via ECharts, que
+   precisam de altura CSS explícita (diferente do SVG manual antigo, que
+   escalava sozinho por viewBox). */
+
+/* ECharts mede clientWidth/clientHeight do contêiner — precisa de altura real. */
+.hero-chart { height: 320px; }
+.small-chart { height: 190px; }
+.chart-wrap.medium-chart { height: 240px; }
+
+.fact-spark { display: block; width: 58px; height: 20px; margin-top: 4px; }
+.model-facts > span:has(.fact-spark) { min-width: 96px; }
+
+.analysis-charts {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 10px;
+  padding: 10px 14px 0;
+}
+.analysis-charts[hidden] { display: none; }
+.compact-chart .panel-head { min-height: 40px; }
+
+.latency-panel .chart-wrap { height: 210px; padding: 6px 10px; }
+
+/* micro stacked bar de duração (tabela de execuções) */
+.dur-bar {
+  display: flex; width: 84px; height: 8px; overflow: hidden;
+  border-radius: 2px; background: var(--surface-2);
+}
+.dur-bar i { display: block; height: 100%; }
+.dur-bar .seg-load { background: var(--pane-c); }
+.dur-bar .seg-prompt { background: var(--pane-b); }
+.dur-bar .seg-eval { background: var(--accent); }
+.dur-bar.empty { background: transparent; }
+
+/* linha do tempo da requisição, dentro do drawer de detalhe */
+.request-timeline { margin: 6px 0 4px; }
+.request-timeline .chart-wrap { height: 64px; }
+.request-timeline-legend { display: flex; gap: 14px; margin-top: 2px; color: var(--muted); font: 10px var(--mono); }
+.request-timeline-legend span { display: inline-flex; align-items: center; gap: 5px; }
+.request-timeline-legend i { display: inline-block; width: 9px; height: 9px; border-radius: 2px; }
+.request-timeline-legend .seg-load { background: var(--pane-c); }
+.request-timeline-legend .seg-prompt { background: var(--pane-b); }
+.request-timeline-legend .seg-eval { background: var(--accent); }
+
+/* ================= Experimentos ================= */
+.experiments-layout {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start;
+}
+.leaderboard-panel, .pair-compare-panel { grid-column: 1 / -1; }
+.dense-table.leaderboard-table { width: 100%; }
+.bar-cell { display: flex; align-items: center; gap: 7px; }
+.spark-bar { display: inline-block; height: 6px; min-width: 3px; width: var(--v, 0%); max-width: 90px; background: var(--accent); border-radius: 2px; }
+.chips-cell { display: flex; flex-wrap: wrap; gap: 4px; }
+.src-badge { padding: 1px 6px; border-radius: 20px; border: 1px solid var(--line); color: var(--muted); font: 8px var(--mono); text-transform: uppercase; }
+.src-badge.request { color: var(--accent); border-color: var(--accent); }
+.src-badge.modelfile { color: var(--pane-b); border-color: var(--pane-b); }
+
+.pair-columns { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 10px; padding: 12px; }
+.pair-col { display: flex; flex-direction: column; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2); }
+.pair-col > header { display: flex; flex-direction: column; }
+.pair-col > header b { font: 600 12px var(--mono); }
+.pair-col > header span { color: var(--muted); font-size: 10px; }
+.pair-metrics { display: flex; gap: 12px; }
+.pair-metrics span { display: flex; flex-direction: column; }
+.pair-metrics small { color: var(--muted-2); font: 7px var(--mono); text-transform: uppercase; }
+.pair-metrics b { font: 500 13px var(--mono); }
+.pair-labels { display: flex; flex-wrap: wrap; gap: 4px; }
+.pair-col details pre { max-height: 160px; overflow: auto; }
+#exp-pair-diff, .diff-strip#exp-pair-diff { margin: 0 12px 12px; }
+.repro-card { margin: 0 12px 12px; padding: 10px 12px; border: 1px dashed var(--line); border-radius: 4px; }
+.repro-card h3 { margin: 0 0 8px; color: var(--muted); font: 10px var(--mono); text-transform: uppercase; letter-spacing: .06em; }
+.repro-rows { margin: 0 0 10px; display: grid; gap: 4px; }
+.repro-rows div { display: grid; grid-template-columns: 140px 1fr; gap: 8px; font-size: 11px; }
+.repro-rows dt { color: var(--muted); }
+.repro-rows dd { margin: 0; font-family: var(--mono); }
+
+.branch-tree-panel #exp-tree { padding: 8px 12px 14px; max-height: 360px; overflow: auto; }
+.tree-node {
+  display: flex; align-items: center; gap: 7px; padding: 5px 6px;
+  margin-left: calc(var(--depth, 0) * 16px); border-radius: 3px; cursor: pointer;
+}
+.tree-node:hover { background: var(--surface-2); }
+.tree-node i { width: 6px; height: 6px; border-radius: 50%; flex: 0 0 auto; }
+.tree-node b { font-size: 10px; }
+.tree-node small { display: block; color: var(--muted); font-size: 9px; }
+
+/* ================= Desempenho ================= */
+.performance-layout {
+  display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start;
+}
+.timeline-panel, .envs-panel { grid-column: 1 / -1; }
+.env-card {
+  display: inline-flex; flex-direction: column; gap: 8px; min-width: 220px;
+  margin: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 4px; background: var(--surface-2);
+}
+#perf-environments { display: flex; flex-wrap: wrap; }
+.env-card > header { display: flex; justify-content: space-between; gap: 8px; }
+.env-card > header b { font-size: 12px; }
+.env-card > header span { color: var(--muted); font-size: 10px; }
+.env-rows { margin: 0; display: grid; gap: 3px; }
+.env-rows div { display: grid; grid-template-columns: 60px 1fr; gap: 8px; font-size: 10px; }
+.env-rows dt { color: var(--muted); }
+.env-rows dd { margin: 0; font-family: var(--mono); overflow-wrap: anywhere; }
+
+/* ================= Benchmarks ================= */
+.benchmark-runner { padding: 18px; display: flex; flex-direction: column; gap: 10px; }
+.benchmark-bars { grid-column: 1 / -1; }
+.benchmark-bars .chart-wrap, .radar-panel .chart-wrap { padding: 6px 10px; }
+
+/* ================= Hugging Face · Locais ================= */
+.hf-card .warn { color: var(--warn); }
+#local-quant-compare .chart-wrap { height: 190px; padding: 6px 10px; }
+
+@media (max-width: 1180px) {
+  .analysis-charts { grid-template-columns: 1fr 1fr; }
+}
+@media (max-width: 900px) {
+  .experiments-layout, .performance-layout { grid-template-columns: 1fr; }
+  .leaderboard-panel, .pair-compare-panel, .timeline-panel, .envs-panel { grid-column: 1; }
+}
+@media (max-width: 760px) {
+  .analysis-charts { grid-template-columns: 1fr; }
+}

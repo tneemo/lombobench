@@ -5,33 +5,123 @@
 <meta name="viewport" content="width=device-width, initial-scale=1">
 <title>Lombo Lab</title>
 <link rel="stylesheet" href="/_lombo/app/lab.css">
+<link rel="stylesheet" href="/_lombo/app/views.css">
 </head>
 <body>
 <aside class="sidebar">
-  <div class="brand"><span class="wordmark">lombo<b>lab</b></span></div>
+  <div class="brand"><span class="brand-mark">L</span><span class="wordmark">lombo<b>lab</b></span></div>
+  <button class="project-switcher" type="button" id="session-switcher">
+    <span class="project-glyph" id="session-switcher-glyph">+</span><span><b id="session-switcher-title">Nova investigação</b><small id="session-switcher-sub">sem sessão ativa</small></span><span class="chevron">→</span>
+  </button>
+  <span class="nav-section">Workspace</span>
   <nav class="nav" role="tablist" aria-label="Seções do Lab">
-    <button class="nav-item" role="tab" id="tab-lab" aria-selected="true">
+    <button class="nav-item" role="tab" id="tab-overview" aria-selected="true">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/></svg>
+      <span class="nav-label">Visão geral</span><kbd>G</kbd></button>
+    <button class="nav-item" role="tab" id="tab-lab" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M9 3h6M10 3v6.5L5 18a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-8.5V3" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Laboratório</span></button>
+      <span class="nav-label">Prompt lab</span><kbd>P</kbd></button>
+    <span class="nav-section in-nav">Análise</span>
     <button class="nav-item" role="tab" id="tab-analysis" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M4 20V6M4 20h16M8 20v-6M12 20v-10M16 20v-4M20 20V8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Análise</span></button>
+      <span class="nav-label">Execuções</span><span class="nav-count" id="nav-count-runs" hidden></span></button>
+    <button class="nav-item" role="tab" id="tab-experiments" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 3h6M10 3v5L4 19a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2l-6-11V3M8 15h8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="nav-label">Experimentos</span><kbd>E</kbd></button>
+    <button class="nav-item" role="tab" id="tab-performance" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 12 6 6M12 4a8 8 0 1 1-8 8" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="nav-label">Desempenho</span><kbd>D</kbd></button>
+    <button class="nav-item" role="tab" id="tab-benchmarks" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 19V9m5 10V5m5 14v-7m5 7V3M3 19h19" stroke-linecap="round"/></svg>
+      <span class="nav-label">Benchmarks</span><kbd>B</kbd></button>
+    <span class="nav-section in-nav">Interpretabilidade</span>
     <button class="nav-item" role="tab" id="tab-diagnostics" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M12 3 3 8l9 5 9-5-9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Diagnóstico</span></button>
+      <span class="nav-label">Camadas & logits</span><kbd>L</kbd></button>
+    <button class="nav-item" role="tab" id="tab-activations" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12h3l2-7 4 14 3-10 2 6h4" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="nav-label">Ativações</span><kbd>A</kbd></button>
+    <span class="nav-section in-nav">Biblioteca</span>
+    <button class="nav-item" role="tab" id="tab-huggingface" aria-selected="false">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
+        <path d="M7.5 10.5v-1M16.5 10.5v-1M8.5 15c2.1 1.8 4.9 1.8 7 0M5 6.5C6.8 4.2 9.1 3 12 3s5.2 1.2 7 3.5M4.5 13.5 2.5 15M19.5 13.5l2 1.5M5 18l-1 2.5M19 18l1 2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+      <span class="nav-label">Modelos & datasets</span></button>
   </nav>
   <div class="sidebar-foot">
-    <span class="privacy">As conversas são gravadas localmente (lombo.db) e podem conter dados sensíveis.</span>
+    <div class="runtime-status"><i id="runtime-dot"></i><span><b>Ollama</b><small id="runtime-detail">verificando…</small></span></div>
+    <span class="privacy">Dados locais · lombo.db</span>
   </div>
 </aside>
 
 <div class="workspace">
+<header class="global-bar">
+  <div class="crumb"><span>Research</span><b>/</b><strong id="global-view-name">Visão geral</strong></div>
+  <div class="global-actions">
+    <span class="sync-state"><i></i> gravando em lombo.db</span>
+  </div>
+</header>
 <main>
+  <!-- ============ VISÃO GERAL ============ -->
+  <section class="view active overview" id="view-overview">
+    <header class="page-toolbar overview-toolbar">
+      <div class="model-identity">
+        <span class="model-avatar" id="ov-model-avatar">·</span>
+        <div><span class="eyebrow">Modelo ativo</span><h1 id="ov-model-name">nenhum modelo ainda</h1></div>
+        <span class="model-tag" id="ov-model-engine" hidden></span>
+      </div>
+      <div class="model-facts">
+        <span><small>EXECUÇÕES</small><b id="ov-fact-runs">—</b><i class="fact-spark" id="ov-spark-runs"></i></span>
+        <span><small>SESSÕES</small><b id="ov-fact-sessions">—</b></span>
+        <span><small>TOK/S MÉDIO</small><b id="ov-fact-tps">—</b><i class="fact-spark" id="ov-spark-tps"></i></span>
+        <span><small>TTFT MÉDIO</small><b id="ov-fact-ttft">—</b><i class="fact-spark" id="ov-spark-ttft"></i></span>
+      </div>
+      <button class="btn primary" type="button" data-open-view="lab"><span>▶</span> Nova inferência</button>
+    </header>
+
+    <div class="research-canvas">
+      <section class="investigation-strip" id="ov-session-strip">
+        <div><span class="pulse-dot"></span><span><small id="ov-session-eyebrow">SESSÃO MAIS RECENTE</small><b id="ov-session-title">nenhuma sessão criada</b></span></div>
+        <div class="hypothesis"><small>CONFIGURAÇÃO BASE</small><span id="ov-session-base">crie uma sessão no Prompt lab para começar a comparar condições</span></div>
+        <div class="strip-meta">
+          <span><small>PAINÉIS</small><b id="ov-session-panes">—</b></span>
+          <span><small>EXECUÇÕES</small><b id="ov-session-runs">—</b></span>
+          <span><small>ÚLTIMA EXECUÇÃO</small><b id="ov-session-last">—</b></span>
+        </div>
+        <button class="btn" type="button" id="ov-open-session" data-open-view="lab">Abrir estudo →</button>
+      </section>
+
+      <div class="overview-grid">
+        <section class="viz-panel layer-map-panel">
+          <header class="panel-head"><div><span class="eyebrow">Medições reais</span><h2>Throughput por execução</h2><p>tokens/s de cada execução registrada · uma série por modelo</p></div><div class="legend" id="ov-tps-legend"></div></header>
+          <div class="chart-wrap hero-chart" id="ov-tps-chart"></div>
+          <footer class="finding" id="ov-finding" hidden><span class="finding-icon">↗</span><div><small>LEITURA</small><b id="ov-finding-title"></b><p id="ov-finding-note"></p></div><button class="btn" type="button" data-open-view="analysis">Ver execuções</button></footer>
+        </section>
+
+        <aside class="evidence-column">
+          <section class="viz-panel tokens-panel"><header class="panel-head compact"><div><span class="eyebrow">Agregado</span><h2>Execuções por modelo</h2></div></header>
+            <ol class="token-bars" id="ov-models"></ol>
+          </section>
+          <section class="viz-panel"><header class="panel-head compact"><div><span class="eyebrow">Prompt lab</span><h2>Sessões recentes</h2></div><button class="btn small" type="button" data-open-view="lab">Nova</button></header>
+            <div class="run-list" id="ov-sessions"></div>
+          </section>
+        </aside>
+
+        <section class="viz-panel compare-panel"><header class="panel-head compact"><div><span class="eyebrow">Histórico</span><h2>Execuções recentes</h2></div><button class="btn small" type="button" data-open-view="analysis">Ver todas</button></header>
+          <div class="run-list" id="ov-runs"></div>
+        </section>
+
+        <section class="viz-panel latency-panel"><header class="panel-head compact"><div><span class="eyebrow">Breakdown real</span><h2>Latência média por modelo</h2></div><button class="btn small" type="button" data-open-view="performance">Ver desempenho →</button></header>
+          <div class="chart-wrap" id="ov-latency-chart"></div>
+        </section>
+      </div>
+    </div>
+  </section>
+
   <!-- ============ LABORATÓRIO ============ -->
-  <section class="view active" id="view-lab">
+  <section class="view" id="view-lab">
     <div class="session-bar" id="session-bar" hidden>
       <span class="session-title" id="session-title"></span>
       <span class="mode-chip" id="session-mode"></span>
@@ -119,24 +209,99 @@
     <div class="toolbar">
       <input id="f-model" placeholder="modelo">
       <input id="f-experiment" placeholder="experimento">
+      <input id="f-condition" placeholder="condição">
       <select id="f-origin">
         <option value="">origem: todas</option>
         <option value="lab">lab</option>
         <option value="external">external</option>
+        <option value="benchmark">benchmark</option>
+      </select>
+      <select id="f-status">
+        <option value="">status: todos</option>
+        <option value="ok">sucesso</option>
+        <option value="error">erro</option>
       </select>
       <button class="btn" id="btn-filter">Filtrar</button>
+      <button class="btn" id="btn-toggle-charts" type="button" aria-expanded="true">Ocultar gráficos</button>
       <span class="spacer" style="flex:1"></span>
       <a class="btn" href="/_lombo/api/export?format=csv" download>Export CSV</a>
       <a class="btn" href="/_lombo/api/export?format=json" download>Export JSON</a>
+    </div>
+    <div class="analysis-charts" id="analysis-charts">
+      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Distribuição</span><h2>tok/s do filtro atual</h2></div></header><div class="chart-wrap small-chart" id="an-hist-tps"></div></section>
+      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Correlação</span><h2>TTFT × tokens de prompt</h2></div></header><div class="chart-wrap small-chart" id="an-scatter"></div></section>
+      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Volume</span><h2>Execuções por hora</h2></div></header><div class="chart-wrap small-chart" id="an-volume"></div></section>
     </div>
     <div class="table-wrap">
       <table class="req">
         <thead><tr>
           <th>Início</th><th>Modelo</th><th>Origem</th><th>Condição</th>
-          <th>Variáveis ≠ base</th><th>tok</th><th>tok/s</th><th>TTFT ms</th><th>Status</th>
+          <th>Variáveis ≠ base</th><th>tok</th><th>tok/s</th><th>TTFT ms</th><th>Duração</th><th>Status</th>
         </tr></thead>
         <tbody id="req-rows"></tbody>
       </table>
+    </div>
+  </section>
+
+  <!-- ============ EXPERIMENTOS ============ -->
+  <section class="view instrument-view" id="view-experiments">
+    <header class="page-toolbar instrument-toolbar">
+      <div><span class="eyebrow">Histórico & reprodutibilidade</span><h1>Experimentos</h1><p>Leaderboard, impacto de parâmetro, comparação de pares e árvore de branches</p></div>
+      <label class="compact-field"><span>EXPERIMENTO</span><select id="exp-experiment"><option value="">todos os experimentos</option></select></label>
+      <label class="compact-field"><span>PARÂMETRO</span><select id="exp-param">
+        <option value="temperature">temperature</option><option value="top_p">top_p</option>
+        <option value="top_k">top_k</option><option value="seed">seed</option>
+        <option value="repeat_penalty">repeat_penalty</option><option value="num_ctx">num_ctx</option>
+        <option value="num_predict">num_predict</option></select></label>
+      <button class="btn" id="btn-exp-share" type="button">Compartilhar par →</button>
+    </header>
+    <div class="instrument-canvas experiments-layout">
+      <section class="viz-panel leaderboard-panel">
+        <header class="panel-head"><div><span class="eyebrow">Ranking</span><h2>Leaderboard modelo × condição</h2><p>Agregado de execuções reais + avaliações heurísticas/humanas</p></div></header>
+        <div class="table-wrap" id="exp-leaderboard"></div>
+      </section>
+
+      <section class="viz-panel param-impact-panel">
+        <header class="panel-head"><div><span class="eyebrow">Camada inferida</span><h2>Impacto de parâmetro</h2><p>tok/s, tokens e TTFT por valor observado — não confirmado pelo servidor</p></div></header>
+        <div class="chart-wrap medium-chart" id="exp-param-chart"></div>
+        <div id="exp-param-table"></div>
+      </section>
+
+      <section class="viz-panel pair-compare-panel">
+        <header class="panel-head"><div><span class="eyebrow">Comparação</span><h2>Par selecionado</h2><p>Abra um par pelas execuções recentes, pelo Prompt lab ou pela árvore de branches</p></div></header>
+        <div id="exp-pair-detail"></div>
+      </section>
+
+      <section class="viz-panel branch-tree-panel">
+        <header class="panel-head compact"><div><span class="eyebrow">Sessões ramificadas</span><h2>Árvore de branches</h2></div>
+          <label class="compact-field"><span>SESSÃO</span><select id="exp-tree-session"></select></label></header>
+        <div id="exp-tree"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============ DESEMPENHO ============ -->
+  <section class="view instrument-view" id="view-performance">
+    <header class="page-toolbar instrument-toolbar">
+      <div><span class="eyebrow">Hardware & latência</span><h1>Desempenho</h1><p>Breakdown de latência, distribuições, atividade e VRAM — dados reais do lombo.db</p></div>
+      <label class="compact-field"><span>MODELO</span><select id="perf-model"><option value="">todos os modelos</option></select></label>
+      <div class="segmented" id="perf-metric-toggle">
+        <button class="active" type="button" data-metric="tokens_per_second">tok/s</button>
+        <button type="button" data-metric="time_to_first_token_ms">TTFT</button>
+        <button type="button" data-metric="eval_count">tokens</button>
+      </div>
+    </header>
+    <div class="instrument-canvas performance-layout">
+      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Breakdown real</span><h2>Latência por modelo</h2><p>load → prompt eval → eval, médias em ms</p></div></header>
+        <div class="chart-wrap medium-chart" id="perf-latency-chart"></div></section>
+      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Distribuição</span><h2>Por modelo</h2><p>Violin plot a partir do histograma real da métrica selecionada</p></div></header>
+        <div class="chart-wrap medium-chart" id="perf-dist-chart"></div></section>
+      <section class="viz-panel timeline-panel"><header class="panel-head"><div><span class="eyebrow">Atividade</span><h2>Execuções ao longo do tempo</h2></div></header>
+        <div class="chart-wrap medium-chart" id="perf-activity-chart"></div></section>
+      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Runtime</span><h2>VRAM / modelos carregados</h2><p>Extraído do estado observado (/api/ps) por execução</p></div></header>
+        <div class="chart-wrap medium-chart" id="perf-vram-chart"></div></section>
+      <section class="viz-panel envs-panel"><header class="panel-head"><div><span class="eyebrow">Hardware</span><h2>Ambientes observados</h2></div></header>
+        <div id="perf-environments"></div></section>
     </div>
   </section>
 
@@ -160,6 +325,131 @@
     </div>
     <div id="diag-results" class="diag-results" aria-live="polite"></div>
   </section>
+
+  <!-- ============ ATIVAÇÕES ============ -->
+  <section class="view instrument-view" id="view-activations">
+    <header class="page-toolbar instrument-toolbar">
+      <div><span class="eyebrow">Trace explorer</span><h1>Ativações internas</h1><p>Normas, sparsity e outliers por módulo · captura real via forward hooks (engine Transformers)</p></div>
+      <label class="compact-field"><span>EXECUÇÃO</span><select id="act-request"></select></label>
+      <label class="compact-field"><span>POSIÇÃO</span><select id="act-position"><option value="-1">último token</option></select></label>
+      <div class="segmented" id="act-metric-toggle">
+        <button class="active" type="button" data-metric="l2">Norma L2</button>
+        <button type="button" data-metric="mean">Mean</button>
+        <button type="button" data-metric="sparsity">Sparsity</button>
+        <button type="button" data-metric="max">Max</button>
+      </div>
+      <button class="btn primary" id="act-capture" type="button">Capturar</button>
+    </header>
+    <div class="instrument-canvas activation-layout">
+      <section class="viz-panel activation-matrix-panel"><header class="panel-head"><div><span class="eyebrow">Layer × module</span><h2>Mapa de intensidade das ativações</h2><p id="act-matrix-caption">Capture uma execução Transformers para ver dados reais</p></div><div class="scale-legend" id="act-scale-legend" hidden><span>min</span><i></i><span>max</span></div></header>
+        <div class="activation-matrix"><div class="matrix-y" id="activation-matrix-y"></div><div class="matrix-grid" id="activation-matrix"></div><div class="matrix-x" id="activation-axis"></div></div>
+        <div class="panel-empty" id="act-empty">Selecione uma execução e clique em "Capturar".</div>
+      </section>
+      <aside class="activation-inspector viz-panel"><header class="panel-head compact"><div><span class="eyebrow">Seleção</span><h2 id="act-selection-title">Nenhuma célula selecionada</h2></div><span class="outlier-badge" id="act-outlier-badge" hidden></span></header>
+        <div class="inspector-metrics" id="act-inspector-metrics"></div>
+        <div class="distribution"><header><b>Distribuição</b><span id="act-dim-count"></span></header><div class="chart-wrap" id="act-histogram" style="height:150px"></div></div>
+        <button class="btn full" id="act-add-compare" disabled>Adicionar ao comparador</button>
+      </aside>
+      <section class="viz-panel neuron-panel"><header class="panel-head"><div><span class="eyebrow">Feature dimensions</span><h2>Top dimensões ativadas</h2></div></header>
+        <div id="act-top-dims"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============ BENCHMARKS ============ -->
+  <section class="view instrument-view" id="view-benchmarks">
+    <header class="page-toolbar instrument-toolbar">
+      <div><span class="eyebrow">Teste real</span><h1>Benchmark rápido</h1><p>Execute um prompt no modelo selecionado e registre a medição</p></div>
+      <label class="compact-field"><span>ENGINE</span><select id="bench-engine"><option value="transformers">Transformers (Hugging Face)</option><option value="ollama">Ollama</option></select></label>
+      <label class="compact-field"><span>MODELO</span><input id="bench-model" placeholder="org/model"></label>
+      <button class="btn primary" id="bench-run">▶ Executar teste</button>
+    </header>
+    <div class="instrument-canvas benchmark-layout">
+      <section class="benchmark-summary" id="bench-summary">
+        <article><span>Última execução</span><b id="bs-elapsed">—</b><small>segundos</small></article>
+        <article><span>Tok/s</span><b id="bs-tps">—</b><small>tokens/s</small></article>
+        <article><span>Tokens gerados</span><b id="bs-tokens">—</b><small>eval_count</small></article>
+        <article class="benchmark-runtime"><span>Modelo testado</span><b id="bs-model">—</b><small id="bs-engine"></small></article>
+      </section>
+
+      <section class="viz-panel benchmark-runner">
+        <label class="field"><span class="label">Prompt do teste</span><textarea id="bench-prompt" rows="5">Explique em duas frases por que o céu parece azul.</textarea></label>
+        <div id="bench-status" class="notice-inline" role="status">Selecione um modelo no Hugging Face ou informe o identificador acima.</div>
+        <div id="bench-result"></div>
+      </section>
+
+      <section class="viz-panel radar-panel">
+        <header class="panel-head"><div><span class="eyebrow">Perfil</span><h2>Comparação entre modelos</h2><p>Métricas heurísticas normalizadas · até 3 modelos com mais execuções</p></div></header>
+        <div class="chart-wrap medium-chart" id="bench-radar"></div>
+      </section>
+
+      <section class="viz-panel benchmark-bars">
+        <header class="panel-head"><div><span class="eyebrow">Ranking</span><h2>tok/s por modelo</h2></div></header>
+        <div class="chart-wrap medium-chart" id="bench-table"></div>
+      </section>
+
+      <section class="viz-panel benchmark-history">
+        <header class="panel-head compact"><div><span class="eyebrow">Histórico</span><h2>Execuções de benchmark</h2><p>requests com origin=benchmark</p></div></header>
+        <div class="chart-wrap medium-chart" id="bench-history-chart"></div>
+      </section>
+    </div>
+  </section>
+
+  <!-- ============ HUGGING FACE HUB ============ -->
+  <section class="view hf-view" id="view-huggingface">
+    <header class="hf-header">
+      <div>
+        <span class="eyebrow">Biblioteca integrada</span>
+        <h1>Hugging Face Hub</h1>
+      </div>
+      <a class="hf-official" href="https://huggingface.co" target="_blank" rel="noopener noreferrer">huggingface.co ↗</a>
+    </header>
+    <div class="hf-tabs" role="tablist" aria-label="Recursos do Hugging Face Hub">
+      <button class="hf-tab active" id="hf-tab-models" role="tab" aria-selected="true">Modelos</button>
+      <button class="hf-tab" id="hf-tab-datasets" role="tab" aria-selected="false">Datasets</button>
+      <button class="hf-tab" id="hf-tab-local" role="tab" aria-selected="false">Locais</button>
+    </div>
+
+    <form class="hf-filters" id="hf-model-filters">
+      <label class="hf-search"><span class="sr-only">Buscar modelos</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>
+        <input name="search" type="search" placeholder="Buscar modelos por nome…" autocomplete="off"></label>
+      <input name="author" placeholder="Organização / autor" aria-label="Organização ou autor">
+      <select name="pipeline" aria-label="Pipeline">
+        <option value="">Pipeline: todos</option><option>text-generation</option><option>text-classification</option>
+        <option>feature-extraction</option><option>sentence-similarity</option><option>image-classification</option>
+        <option>automatic-speech-recognition</option><option>text-to-image</option><option>question-answering</option>
+      </select>
+      <select name="license" aria-label="Licença">
+        <option value="">Licença: todas</option><option>apache-2.0</option><option>mit</option><option>openrail</option>
+        <option>creativeml-openrail-m</option><option>llama3</option><option>gemma</option><option>cc-by-4.0</option>
+      </select>
+      <select name="gated" aria-label="Acesso"><option value="">Acesso: todos</option><option value="false">Públicos</option><option value="true">Gated</option></select>
+      <button class="btn primary" type="submit">Aplicar</button>
+    </form>
+
+    <form class="hf-filters" id="hf-dataset-filters" hidden>
+      <label class="hf-search"><span class="sr-only">Buscar datasets</span>
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>
+        <input name="search" type="search" placeholder="Buscar datasets por nome…" autocomplete="off"></label>
+      <input name="author" placeholder="Organização / autor" aria-label="Organização ou autor">
+      <select name="modality" aria-label="Modalidade"><option value="">Modalidade: todas</option><option>text</option><option>image</option><option>audio</option><option>video</option><option>tabular</option></select>
+      <select name="task" aria-label="Task"><option value="">Task: todas</option><option>text-classification</option><option>question-answering</option><option>text-generation</option><option>image-classification</option><option>automatic-speech-recognition</option><option>translation</option></select>
+      <select name="license" aria-label="Licença"><option value="">Licença: todas</option><option>apache-2.0</option><option>mit</option><option>cc-by-4.0</option><option>cc-by-sa-4.0</option><option>cc0-1.0</option><option>odc-by</option></select>
+      <select name="gated" aria-label="Acesso"><option value="">Acesso: todos</option><option value="false">Públicos</option><option value="true">Gated</option></select>
+      <button class="btn primary" type="submit">Aplicar</button>
+    </form>
+
+    <div class="hf-content" id="hf-content">
+      <div class="hf-list-head"><span id="hf-result-count" role="status">Explore recursos públicos do Hub</span><span>Ordenado por downloads</span></div>
+      <div class="hf-grid" id="hf-results" aria-live="polite"></div>
+    </div>
+
+    <div class="hf-content" id="hf-local-content" hidden>
+      <div class="hf-list-head"><span id="hf-local-count" role="status">Modelos locais</span><span>Ordenado por execuções</span></div>
+      <div class="hf-grid" id="hf-local-results" aria-live="polite"></div>
+    </div>
+  </section>
 </main>
 </div>
 
@@ -180,7 +470,29 @@
   <div class="content" id="drawer-content"></div>
 </aside>
 
-<script src="/_lombo/app/lab.js"></script>
+<div class="hf-drawer-backdrop" id="hf-drawer-backdrop" hidden></div>
+<aside class="hf-drawer" id="hf-drawer" aria-label="Detalhes do recurso Hugging Face" aria-hidden="true">
+  <header>
+    <div class="hf-drawer-title"><span class="eyebrow" id="hf-detail-type"></span><strong id="hf-detail-name"></strong></div>
+    <button class="btn icon-btn" id="hf-close-drawer" aria-label="Fechar painel">×</button>
+  </header>
+  <div class="hf-drawer-body" id="hf-detail-body"></div>
+</aside>
+
+<script src="/_lombo/app/vendor/echarts.min.js"></script>
+<script src="/_lombo/app/core.js"></script>
+<script src="/_lombo/app/charts.js"></script>
+<script src="/_lombo/app/drawer.js"></script>
+<script src="/_lombo/app/huggingface-service.js"></script>
+<script src="/_lombo/app/lab-session.js"></script>
+<script src="/_lombo/app/overview.js"></script>
+<script src="/_lombo/app/runs.js"></script>
+<script src="/_lombo/app/experiments.js"></script>
+<script src="/_lombo/app/performance.js"></script>
+<script src="/_lombo/app/activations.js"></script>
+<script src="/_lombo/app/benchmarks.js"></script>
 <script src="/_lombo/app/diagnostics.js"></script>
+<script src="/_lombo/app/huggingface.js"></script>
+<script src="/_lombo/app/models-local.js"></script>
 </body>
 </html>

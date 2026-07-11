@@ -109,6 +109,18 @@ class AttentionRequest(BaseModel):
     head_index: int | None = None
 
 
+class ActivationsRequest(BaseModel):
+    position: int = -1
+
+
+class ActivationsInspectRequest(BaseModel):
+    layer_index: int
+    module: str
+    position: int = -1
+    top_k_dims: int = 16
+    bins: int = 32
+
+
 def _resolve_trace_engine(state, request_id: str):
     """Shared guards for the NNsight endpoints: returns (engine, prompt).
 
@@ -201,6 +213,43 @@ async def attention_request(request: Request, request_id: str, body: AttentionRe
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
         raise HTTPException(500, f"mapa de atenção falhou: {exc}") from exc
+    return result
+
+
+@router.post("/requests/{request_id}/activations")
+async def activations_request(request: Request, request_id: str, body: ActivationsRequest):
+    """Per-layer, per-module activation summary (norm/mean/max/sparsity) for a
+    Transformers request — the "overview" matrix. See ``.../activations/inspect``
+    for the per-dimension detail of a single cell."""
+    engine, prompt = _resolve_trace_engine(request.app.state, request_id)
+    if not engine.supports_activations():
+        raise HTTPException(422, "arquitetura do modelo não suportada para captura de ativações")
+    try:
+        result = await asyncio.to_thread(engine.capture_activations, prompt, body.position)
+    except (IndexError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"captura de ativações falhou: {exc}") from exc
+    return result
+
+
+@router.post("/requests/{request_id}/activations/inspect")
+async def activations_inspect_request(request: Request, request_id: str,
+                                      body: ActivationsInspectRequest):
+    """Per-dimension detail (top outliers + histogram) of one activation cell."""
+    engine, prompt = _resolve_trace_engine(request.app.state, request_id)
+    if not engine.supports_activations():
+        raise HTTPException(422, "arquitetura do modelo não suportada para captura de ativações")
+    if body.module not in ("attn", "mlp", "resid"):
+        raise HTTPException(422, "module deve ser um de: attn, mlp, resid")
+    try:
+        result = await asyncio.to_thread(
+            engine.inspect_activation, prompt, body.layer_index, body.module,
+            body.position, body.top_k_dims, body.bins)
+    except (IndexError, ValueError) as exc:
+        raise HTTPException(422, str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(500, f"inspeção de ativação falhou: {exc}") from exc
     return result
 
 

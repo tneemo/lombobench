@@ -115,6 +115,20 @@ async def update_session(request: Request, session_id: str, body: SessionUpdate)
     return {"ok": True}
 
 
+@router.get("/lab/sessions/{session_id}/tree")
+async def session_tree(request: Request, session_id: str):
+    """Árvore de branches de uma sessão (branch_id/parent_request_id/turn_id)
+    para reconstrução no front — o backend só devolve os nós ordenados."""
+    conn = request.app.state.conn
+    if conn.execute("SELECT 1 FROM lab_sessions WHERE id = ?", (session_id,)).fetchone() is None:
+        raise HTTPException(404, "sessão não encontrada")
+    rows = conn.execute(
+        "SELECT id, parent_request_id, branch_id, turn_id, condition, model, "
+        "started_at, eval_count, tokens_per_second, error "
+        "FROM requests WHERE lab_session_id = ? ORDER BY started_at", (session_id,)).fetchall()
+    return {"session_id": session_id, "nodes": [dict(r) for r in rows]}
+
+
 @router.get("/lab/models")
 async def list_models(request: Request):
     """Modelos disponíveis no Ollama (para o seletor de painel)."""

@@ -72,6 +72,13 @@ def create_app(config: LomboConfig) -> FastAPI:
         app.state.writer = db.DbWriter(app.state.conn)
         app.state.writer.start()
         app.state.client = httpx.AsyncClient(base_url=config.ollama_url, timeout=None)
+        hf_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(20.0),
+            follow_redirects=True,
+            headers={"User-Agent": "LomboLab/0.1 (Hugging Face browser)"},
+        )
+        from .huggingface import HuggingFaceHubService
+        app.state.huggingface = HuggingFaceHubService(hf_client)
         app.state.transformer_engines = {}
         app.state.transformer_engine_status = {}
         app.state.transformer_engine_lock = asyncio.Lock()
@@ -80,6 +87,7 @@ def create_app(config: LomboConfig) -> FastAPI:
         app.state.environment_id = db.get_or_create_environment(app.state.conn, env)
         app.state.ollama_version = env.get("ollama_version")
         yield
+        await hf_client.aclose()
         await app.state.client.aclose()
         await app.state.writer.close()
         app.state.conn.close()
@@ -100,8 +108,12 @@ def create_app(config: LomboConfig) -> FastAPI:
 
     from .analysis import router as analysis_router
     from .lab import router as lab_router
+    from .huggingface import router as huggingface_router
+    from .insights import router as insights_router
     app.include_router(analysis_router, prefix="/_lombo/api")
     app.include_router(lab_router, prefix="/_lombo/api")
+    app.include_router(huggingface_router, prefix="/_lombo/api")
+    app.include_router(insights_router, prefix="/_lombo/api")
 
     @app.get("/_lombo/")
     async def lab_index():

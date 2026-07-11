@@ -465,7 +465,11 @@
   q('#btn-diagnose').onclick = run;
   q('#btn-diag-reload').onclick = loadPairs;
   q('#diag-target')?.addEventListener('keydown', event => { if (event.key === 'Enter') run(); });
-  ['#tab-lab', '#tab-analysis'].forEach(selector => q(selector)?.addEventListener('click', stopReplay));
+  // Navegar para qualquer outra aba pausa o replay; o router dispara este
+  // evento a cada troca de view (inclusive para abas criadas depois desta).
+  document.addEventListener('lombo:viewchange', event => {
+    if (event.detail.view !== 'diagnostics') stopReplay();
+  });
 
   // Entry point consumed by the existing tab router.
   window.loadVisualDiagPairs = loadPairs;

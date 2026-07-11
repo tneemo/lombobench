@@ -364,6 +364,190 @@ class TransformersEngine(Engine):
             "model": self.get_model_info(),
         }
 
+    def supports_activations(self) -> bool:
+        """Return true when per-module activation stats can be captured.
+
+        Needs only the known decoder-layer layout (same requirement as
+        attention) — no NNsight, no ``lm_head``: this reads intermediate
+        tensors, not predictions.
+        """
+        return self._layer_path() is not None
+
+    def capture_activations(self, prompt: str | list[dict[str, Any]],
+                            position: int = -1) -> dict[str, Any]:
+        """Per-layer, per-module activation summary in one forward pass.
+
+        Hooks the residual stream (block output), attention sub-module output
+        and MLP sub-module output of every decoder block, and reduces each to
+        five scalar statistics (L2 norm, mean, mean-abs, max-abs, sparsity) at
+        one token position. This is the "overview" payload for the activation
+        matrix — see ``inspect_activation`` for the per-dimension detail of a
+        single cell.
+        """
+        if not self.supports_activations():
+            raise RuntimeError(
+                "this model architecture is not supported for activation capture")
+        torch = self._torch
+        layers, _ = self._layer_path()  # type: ignore[misc]
+
+        text = self._format_prompt(prompt)
+        encoded = self.tokenizer(text, return_tensors="pt")
+        device = next(self.model.parameters()).device
+        encoded = {name: tensor.to(device) for name, tensor in encoded.items()}
+        token_ids = encoded["input_ids"][0].tolist()
+        seq_len = len(token_ids)
+        if not -seq_len <= position < seq_len:
+            raise IndexError(f"position {position} is out of range for {seq_len} tokens")
+
+        captured: list[dict[str, Any]] = [{} for _ in layers]
+
+        def _hook(index: int, name: str):
+            def fn(_module, _inputs, output):
+                captured[index][name] = output[0] if isinstance(output, tuple) else output
+            return fn
+
+        handles = []
+        for index, layer in enumerate(layers):
+            handles.append(layer.register_forward_hook(_hook(index, "resid")))
+            attn_module = self._attn_module(layer)
+            if attn_module is not None:
+                handles.append(attn_module.register_forward_hook(_hook(index, "attn")))
+            mlp_module = getattr(layer, "mlp", None)
+            if mlp_module is not None:
+                handles.append(mlp_module.register_forward_hook(_hook(index, "mlp")))
+        try:
+            with torch.inference_mode():
+                self.model(**encoded, use_cache=False)
+        finally:
+            for handle in handles:
+                handle.remove()
+
+        # Only report a module if every layer produced it — a mixed layout
+        # would otherwise silently zero-fill missing cells.
+        modules = [name for name in ("attn", "mlp", "resid")
+                  if all(name in layer_capture for layer_capture in captured)]
+        layers_out = []
+        with torch.inference_mode():
+            for index, layer_capture in enumerate(captured):
+                entry: dict[str, Any] = {"index": index}
+                for name in modules:
+                    vec = layer_capture[name][0, position].detach().float()
+                    entry[name] = self._tensor_stats(vec)
+                layers_out.append(entry)
+
+        return {
+            "num_layers": len(layers), "position": position,
+            "tokens": [self.tokenizer.decode([int(t)]) for t in token_ids],
+            "modules": modules, "layers": layers_out,
+            "model": self.get_model_info(),
+        }
+
+    def inspect_activation(
+        self,
+        prompt: str | list[dict[str, Any]],
+        layer_index: int,
+        module: str,
+        position: int = -1,
+        top_k_dims: int = 16,
+        bins: int = 32,
+    ) -> dict[str, Any]:
+        """Per-dimension detail (top outliers + distribution) of one matrix cell.
+
+        Reruns the forward pass with a single hook on the requested module so
+        the full-width vector (not just five scalars) is available for the
+        top-k/z-score/histogram computation.
+        """
+        if module not in ("attn", "mlp", "resid"):
+            raise ValueError(f"module deve ser um de: attn, mlp, resid (recebido: {module!r})")
+        if not self.supports_activations():
+            raise RuntimeError(
+                "this model architecture is not supported for activation capture")
+        torch = self._torch
+        layers, _ = self._layer_path()  # type: ignore[misc]
+        if not -len(layers) <= layer_index < len(layers):
+            raise IndexError(
+                f"layer_index {layer_index} is out of range for {len(layers)} layers")
+        layer_index %= len(layers)
+        layer = layers[layer_index]
+
+        if module == "attn":
+            target_module = self._attn_module(layer)
+        elif module == "mlp":
+            target_module = getattr(layer, "mlp", None)
+        else:
+            target_module = layer
+        if target_module is None:
+            raise ValueError(f"módulo '{module}' não encontrado nesta arquitetura")
+
+        text = self._format_prompt(prompt)
+        encoded = self.tokenizer(text, return_tensors="pt")
+        device = next(self.model.parameters()).device
+        encoded = {name: tensor.to(device) for name, tensor in encoded.items()}
+        seq_len = int(encoded["input_ids"].shape[-1])
+        if not -seq_len <= position < seq_len:
+            raise IndexError(f"position {position} is out of range for {seq_len} tokens")
+
+        captured: list[Any] = []
+
+        def _hook(_module, _inputs, output):
+            captured.append(output[0] if isinstance(output, tuple) else output)
+
+        handle = target_module.register_forward_hook(_hook)
+        try:
+            with torch.inference_mode():
+                self.model(**encoded, use_cache=False)
+        finally:
+            handle.remove()
+        if not captured:
+            raise ValueError(f"módulo '{module}' não produziu ativação nesta execução")
+
+        with torch.inference_mode():
+            vec = captured[0][0, position].detach().float()
+            stats = self._tensor_stats(vec)
+            std = vec.std() if vec.numel() > 1 else torch.tensor(0.0)
+            stats["std"] = float(std)
+            safe_std = std if float(std) > 1e-9 else torch.tensor(1.0)
+            z = (vec - vec.mean()) / safe_std
+
+            n_dims = min(top_k_dims, vec.numel())
+            abs_vec = vec.abs()
+            sorted_abs, _ = torch.sort(abs_vec)
+            top = torch.topk(abs_vec, n_dims)
+            ranks = torch.searchsorted(sorted_abs, top.values)
+            percentiles = ranks.float() / vec.numel() * 100.0
+            top_dims = [
+                {"dim": int(top.indices[i]), "value": float(vec[top.indices[i]]),
+                 "zscore": float(z[top.indices[i]]), "percentile": round(float(percentiles[i]), 3)}
+                for i in range(n_dims)
+            ]
+
+            clipped = z.clamp(-4.0, 4.0)
+            counts = torch.histc(clipped, bins=bins, min=-4.0, max=4.0)
+            edges = torch.linspace(-4.0, 4.0, bins + 1)
+
+        return {
+            "layer_index": layer_index, "module": module, "position": position,
+            "stats": stats, "top_dims": top_dims,
+            "histogram": {"edges": edges.tolist(), "counts": [int(c) for c in counts.tolist()],
+                         "unit": "zscore"},
+        }
+
+    @staticmethod
+    def _tensor_stats(vec: Any) -> dict[str, float]:
+        return {
+            "l2": float(vec.norm()), "mean": float(vec.mean()),
+            "abs_mean": float(vec.abs().mean()), "max": float(vec.abs().max()),
+            "sparsity": float((vec.abs() < 1e-3).float().mean()),
+        }
+
+    @staticmethod
+    def _attn_module(layer: Any) -> Any:
+        for name in ("self_attn", "attn", "attention"):
+            module = getattr(layer, name, None)
+            if module is not None:
+                return module
+        return None
+
     def _layer_path(self):
         """Return (layers, attribute path) for the few layouts we support."""
         candidates = (

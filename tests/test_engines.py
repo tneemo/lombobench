@@ -225,3 +225,72 @@ def test_diagnostics_requires_supported_layout():
     assert engine.supports_diagnostics() is False
     with pytest.raises(RuntimeError):
         engine.trace_all_layers("oi")
+
+
+# --- Captura de ativações reais (norma/mean/sparsity por camada×módulo) ----
+# Mesma Llama minúscula de pesos aleatórios da suíte de diagnóstico acima.
+
+
+def test_capture_activations_reports_attn_mlp_resid_per_layer():
+    engine, model, torch = _tiny_llama_engine()
+    assert engine.supports_activations() is True
+
+    result = engine.capture_activations("oi", position=-1)
+
+    assert result["num_layers"] == 3
+    assert result["modules"] == ["attn", "mlp", "resid"]
+    assert result["tokens"] == ["<1>", "<5>", "<9>", "<3>"]
+    assert len(result["layers"]) == 3
+    for entry in result["layers"]:
+        assert set(entry) == {"index", "attn", "mlp", "resid"}
+        for module in ("attn", "mlp", "resid"):
+            stats = entry[module]
+            assert set(stats) == {"l2", "mean", "abs_mean", "max", "sparsity"}
+            assert stats["l2"] >= 0.0
+            assert 0.0 <= stats["sparsity"] <= 1.0
+
+
+def test_capture_activations_rejects_out_of_range_position():
+    engine, model, torch = _tiny_llama_engine()
+    with pytest.raises(IndexError):
+        engine.capture_activations("oi", position=99)
+
+
+def test_inspect_activation_returns_top_dims_and_histogram():
+    engine, model, torch = _tiny_llama_engine()
+
+    result = engine.inspect_activation("oi", layer_index=1, module="mlp",
+                                       position=-1, top_k_dims=4, bins=8)
+
+    assert result["layer_index"] == 1
+    assert result["module"] == "mlp"
+    assert set(result["stats"]) == {"l2", "mean", "abs_mean", "max", "sparsity", "std"}
+    assert len(result["top_dims"]) == 4
+    for dim in result["top_dims"]:
+        assert set(dim) == {"dim", "value", "zscore", "percentile"}
+        assert 0.0 <= dim["percentile"] <= 100.0
+    assert len(result["histogram"]["counts"]) == 8
+    assert len(result["histogram"]["edges"]) == 9
+    assert sum(result["histogram"]["counts"]) == 16  # hidden_size da config de teste
+
+
+def test_inspect_activation_rejects_unknown_module():
+    engine, model, torch = _tiny_llama_engine()
+    with pytest.raises(ValueError):
+        engine.inspect_activation("oi", layer_index=0, module="bogus")
+
+
+def test_inspect_activation_rejects_invalid_layer():
+    engine, model, torch = _tiny_llama_engine()
+    with pytest.raises(IndexError):
+        engine.inspect_activation("oi", layer_index=99, module="mlp")
+
+
+def test_activations_requires_supported_layout():
+    torch = pytest.importorskip("torch")
+    engine = TransformersEngine.__new__(TransformersEngine)
+    engine.model = SimpleNamespace(lm_head=object())
+    engine._torch = torch
+    assert engine.supports_activations() is False
+    with pytest.raises(RuntimeError):
+        engine.capture_activations("oi")

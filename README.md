@@ -173,8 +173,13 @@ capture; the Lab displays a permanent warning.
 ## Development
 
 ```sh
+pip install -e ".[dev]"
+ruff check .
 python -m pytest    # parameter layers, stream parsing, heuristics
 ```
+
+CI runs these lint and test checks on Python 3.12 and 3.13, along with Python
+compilation, JavaScript syntax checks, and wheel packaging verification.
 
 Out of scope for this phase (prepared in the schema): autonomous controller
 (phase 2), per-token logprobs, model-judge evaluations. Interpretability via

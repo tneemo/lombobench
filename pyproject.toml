@@ -18,7 +18,7 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "ruff"]
 transformers = [
     "torch>=2.2",
     "transformers>=4.40",
@@ -30,6 +30,16 @@ nnsight = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+
+[tool.ruff]
+target-version = "py312"
+line-length = 100
+extend-exclude = ["lombo/static/vendor"]
+
+[tool.ruff.lint]
+select = ["E", "F", "W", "I"]
+# Keep deliberately long SQL, messages, and data literals readable as written.
+ignore = ["E501"]
 
 [tool.setuptools.packages.find]
 where = ["."]

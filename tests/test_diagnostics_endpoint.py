@@ -12,7 +12,7 @@ from types import SimpleNamespace
 import pytest
 from fastapi import HTTPException
 
-from lombo.analysis import diagnostics_request, DiagnosticsRequest
+from lombo.analysis import DiagnosticsRequest, diagnostics_request
 
 
 class FakeCursor:

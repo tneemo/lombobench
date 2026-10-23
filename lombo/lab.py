@@ -21,8 +21,6 @@ from datetime import datetime, timezone
 from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
-from . import db
-
 router = APIRouter()
 
 
@@ -39,7 +37,6 @@ def _now_iso() -> str:
 
 @router.post("/lab/sessions")
 async def create_session(request: Request, body: LabSession):
-    conn = request.app.state.conn
     session_id = uuid.uuid4().hex[:12]
     created_at = _now_iso()
 

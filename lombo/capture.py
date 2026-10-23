@@ -107,7 +107,7 @@ class StreamAccumulator:
         obj = json.loads(raw)
         response, thinking = [], []
         self._collect_native(obj, response, thinking)
-        return self._finish_native(response, thinking, obj if obj.get("done") else obj)
+        return self._finish_native(response, thinking, obj)
 
     @staticmethod
     def _collect_native(obj: dict, response: list, thinking: list) -> None:

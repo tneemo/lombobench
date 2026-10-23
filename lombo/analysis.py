@@ -6,8 +6,8 @@ inferido / confirmado) — a análise nunca funde as camadas.
 
 from __future__ import annotations
 
-import csv
 import asyncio
+import csv
 import io
 import json
 import sqlite3
@@ -259,7 +259,7 @@ async def add_human_evaluation(request: Request, request_id: str, body: HumanEva
     conn = request.app.state.conn
     if conn.execute("SELECT 1 FROM requests WHERE id = ?", (request_id,)).fetchone() is None:
         raise HTTPException(404, "request não encontrada")
-    invalid = [l for l in body.labels if l not in HUMAN_LABELS]
+    invalid = [label for label in body.labels if label not in HUMAN_LABELS]
     if invalid:
         raise HTTPException(422, f"rótulos inválidos: {invalid}; válidos: {HUMAN_LABELS}")
     created_at = datetime.now(timezone.utc).isoformat()

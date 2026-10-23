@@ -14,7 +14,6 @@ from urllib.parse import parse_qs, quote, urlparse
 import httpx
 from fastapi import APIRouter, HTTPException, Query, Request
 
-
 HUB_URL = "https://huggingface.co"
 DATASETS_SERVER_URL = "https://datasets-server.huggingface.co"
 MAX_CARD_BYTES = 2_000_000

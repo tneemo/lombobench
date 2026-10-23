@@ -103,9 +103,10 @@ def _trace_engine(monkeypatch):
         lm_head=object(),
         parameters=lambda: iter([parameter]),
     )
-    tokenizer = lambda text, return_tensors: {
-        "input_ids": FakeTensor([11, 12, 13], (1, 3), "torch.int64")
-    }
+
+    def tokenizer(text, return_tensors):
+        return {"input_ids": FakeTensor([11, 12, 13], (1, 3), "torch.int64")}
+
     engine = TransformersEngine.__new__(TransformersEngine)
     engine.model_name = "fake/model"
     engine.model = model
@@ -206,7 +207,7 @@ def test_diagnostics_logit_lens_matches_real_logits():
 
 
 def test_diagnostics_without_final_norm(monkeypatch):
-    engine, model, torch = _tiny_llama_engine()
+    engine, _model, _torch = _tiny_llama_engine()
     monkeypatch.setattr(engine, "_final_norm_path", lambda: None)
 
     result = engine.trace_all_layers("oi")
@@ -232,7 +233,7 @@ def test_diagnostics_requires_supported_layout():
 
 
 def test_capture_activations_reports_attn_mlp_resid_per_layer():
-    engine, model, torch = _tiny_llama_engine()
+    engine, _model, _torch = _tiny_llama_engine()
     assert engine.supports_activations() is True
 
     result = engine.capture_activations("oi", position=-1)
@@ -251,13 +252,13 @@ def test_capture_activations_reports_attn_mlp_resid_per_layer():
 
 
 def test_capture_activations_rejects_out_of_range_position():
-    engine, model, torch = _tiny_llama_engine()
+    engine, _model, _torch = _tiny_llama_engine()
     with pytest.raises(IndexError):
         engine.capture_activations("oi", position=99)
 
 
 def test_inspect_activation_returns_top_dims_and_histogram():
-    engine, model, torch = _tiny_llama_engine()
+    engine, _model, _torch = _tiny_llama_engine()
 
     result = engine.inspect_activation("oi", layer_index=1, module="mlp",
                                        position=-1, top_k_dims=4, bins=8)
@@ -275,13 +276,13 @@ def test_inspect_activation_returns_top_dims_and_histogram():
 
 
 def test_inspect_activation_rejects_unknown_module():
-    engine, model, torch = _tiny_llama_engine()
+    engine, _model, _torch = _tiny_llama_engine()
     with pytest.raises(ValueError):
         engine.inspect_activation("oi", layer_index=0, module="bogus")
 
 
 def test_inspect_activation_rejects_invalid_layer():
-    engine, model, torch = _tiny_llama_engine()
+    engine, _model, _torch = _tiny_llama_engine()
     with pytest.raises(IndexError):
         engine.inspect_activation("oi", layer_index=99, module="mlp")
 

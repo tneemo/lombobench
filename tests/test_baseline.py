@@ -1,7 +1,11 @@
 """Camadas de parâmetros e parsing do bloco `parameters` — funções puras."""
 
-from lombo.baseline import (OLLAMA_BUILTIN_DEFAULTS, confirmed_from_response,
-                            layer_params, parse_parameters_raw)
+from lombo.baseline import (
+    OLLAMA_BUILTIN_DEFAULTS,
+    confirmed_from_response,
+    layer_params,
+    parse_parameters_raw,
+)
 
 
 def test_parse_parameters_raw_types_and_repeats():

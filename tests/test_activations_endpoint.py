@@ -13,8 +13,10 @@ import pytest
 from fastapi import HTTPException
 
 from lombo.analysis import (
-    activations_request, activations_inspect_request,
-    ActivationsRequest, ActivationsInspectRequest,
+    ActivationsInspectRequest,
+    ActivationsRequest,
+    activations_inspect_request,
+    activations_request,
 )
 
 

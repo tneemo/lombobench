@@ -14,8 +14,14 @@ from fastapi import HTTPException
 
 from lombo import db
 from lombo.insights import (
-    metrics_timeseries, metrics_latency, metrics_distributions,
-    models_catalog, model_detail, environments, evaluations_summary, runtime_vram,
+    environments,
+    evaluations_summary,
+    metrics_distributions,
+    metrics_latency,
+    metrics_timeseries,
+    model_detail,
+    models_catalog,
+    runtime_vram,
 )
 from lombo.lab import session_tree
 

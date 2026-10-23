@@ -107,9 +107,9 @@ def create_app(config: LomboConfig) -> FastAPI:
                           "podem conter dados sensíveis."}
 
     from .analysis import router as analysis_router
-    from .lab import router as lab_router
     from .huggingface import router as huggingface_router
     from .insights import router as insights_router
+    from .lab import router as lab_router
     app.include_router(analysis_router, prefix="/_lombo/api")
     app.include_router(lab_router, prefix="/_lombo/api")
     app.include_router(huggingface_router, prefix="/_lombo/api")

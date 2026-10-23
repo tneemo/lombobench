@@ -176,7 +176,7 @@ capture; the Lab displays a permanent warning.
 pip install -e ".[dev]"
 ruff check .
 python -m pytest    # parameter layers, stream parsing, heuristics
-node --test tests/js    # browser display helpers; requires Node.js 18+
+node --test tests/js/*.test.mjs    # browser display helpers; requires Node.js 18+
 ```
 
 CI runs these lint and test checks on Python 3.12 and 3.13, along with Python

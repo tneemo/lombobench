@@ -1,9 +1,9 @@
-/* Núcleo do shell: helpers compartilhados, roteamento de views, boot.
-   Outros arquivos (drawer.js, lab-session.js, overview.js, runs.js,
-   diagnostics.js, huggingface.js) declaram funções no escopo global — como
-   antes da divisão de lab.js — e podem chamar as daqui livremente, desde
-   que só o façam depois do boot (DOMContentLoaded), quando todo script já
-   carregou. */
+/* Shell core: shared helpers, view routing, boot.
+   Other files (drawer.js, lab-session.js, overview.js, runs.js,
+   diagnostics.js, huggingface.js) declare functions in the global scope — as
+   before the lab.js split — and can freely call these helpers, provided
+   they do so after boot (DOMContentLoaded), when every script has
+   loaded. */
 'use strict';
 
 const API = '/_lombo/api';
@@ -11,6 +11,39 @@ const $ = (sel, el) => (el || document).querySelector(sel);
 const rid = () => crypto.randomUUID().replace(/-/g, '').slice(0, 12);
 
 const PANE_COLORS = ['var(--pane-a)', 'var(--pane-b)', 'var(--pane-c)', 'var(--pane-d)'];
+
+// Keep stored/API label identifiers stable; translate only their display text.
+const HUMAN_LABEL_TEXT = {
+  correto: 'correct',
+  alucinou: 'hallucinated',
+  reconheceu_entidade_inexistente: 'recognized nonexistent entity',
+  corrigiu_premissa_falsa: 'corrected false premise',
+  pediu_esclarecimento: 'asked for clarification',
+  demonstrou_incerteza: 'expressed uncertainty',
+  resposta_inconclusiva: 'inconclusive response',
+};
+const PANE_VALUE_TEXT = { variante: 'variant' };
+const CONDITION_TEXT = {
+  'prompt=variante': 'prompt=variant',
+  'prompt=variante+prompt≠': 'prompt=variant+prompt≠',
+};
+
+function humanLabelText(label) {
+  return Object.hasOwn(HUMAN_LABEL_TEXT, label)
+    ? HUMAN_LABEL_TEXT[label] : String(label ?? '').replace(/_/g, ' ');
+}
+
+function conditionText(condition) {
+  // Preserve diagnostic fallback names in exported JSON as well.
+  if (/^condição \d+$/.test(condition)) return condition.replace('condição ', 'condition ');
+  return Object.hasOwn(CONDITION_TEXT, condition) ? CONDITION_TEXT[condition] : condition;
+}
+
+function sessionTitleText(title) {
+  if (title === 'Sessão sem título') return 'Untitled session';
+  // Only generated date/time titles use this legacy prefix.
+  return /^Sessão \d.*\d:\d/.test(title) ? title.replace(/^Sessão /, 'Session ') : title;
+}
 
 function esc(s) {
   return String(s ?? '').replace(/[&<>"']/g,
@@ -21,20 +54,20 @@ function timeAgo(iso) {
   if (!iso) return '—';
   const s = (Date.now() - new Date(iso).getTime()) / 1000;
   if (!Number.isFinite(s)) return '—';
-  if (s < 60) return 'agora há pouco';
-  if (s < 3600) return `há ${Math.floor(s / 60)} min`;
-  if (s < 86400) return `há ${Math.floor(s / 3600)} h`;
-  return `há ${Math.floor(s / 86400)} d`;
+  if (s < 60) return 'just now';
+  if (s < 3600) return `${Math.floor(s / 60)} min ago`;
+  if (s < 86400) return `${Math.floor(s / 3600)} h ago`;
+  return `${Math.floor(s / 86400)} d ago`;
 }
 
 const emptyPanel = text => `<div class="panel-empty">${esc(text)}</div>`;
 
-/* ================= abas ================= */
+/* ================= tabs ================= */
 const VIEW_NAMES = {
-  overview: 'Visão geral', lab: 'Prompt lab', analysis: 'Execuções',
-  experiments: 'Experimentos', performance: 'Desempenho',
-  diagnostics: 'Camadas & logits', activations: 'Ativações',
-  benchmarks: 'Benchmarks', huggingface: 'Modelos & datasets',
+  overview: 'Overview', lab: 'Prompt lab', analysis: 'Runs',
+  experiments: 'Experiments', performance: 'Performance',
+  diagnostics: 'Layers & logits', activations: 'Activations',
+  benchmarks: 'Benchmarks', huggingface: 'Models & datasets',
 };
 
 function switchView(name) {
@@ -63,7 +96,7 @@ window.selectHuggingFaceModel = (model, destination = 'lab') => {
   } else {
     $('#s-engine').value = 'transformers';
     $('#s-model').value = model;
-    $('#s-model').placeholder = 'ex.: Qwen/Qwen2.5-0.5B-Instruct';
+    $('#s-model').placeholder = 'e.g. Qwen/Qwen2.5-0.5B-Instruct';
     switchView('lab');
   }
 };
@@ -91,11 +124,11 @@ function initResearchWorkspace() {
 }
 
 /* ================= boot =================
-   Todos os arquivos de view carregam como <script> simples (mesmo escopo
-   global desta divisão) na ordem definida em index.html; DOMContentLoaded só
-   dispara depois que o último script do body terminou de executar, então
-   por essa altura loadModels/initSetup/openSession/openDrawer etc. — vindos
-   de lab-session.js, drawer.js, overview.js, runs.js — já existem. */
+   All view files load as plain <script> elements (in the same global scope
+   after the split), in the order defined in index.html; DOMContentLoaded only
+   fires after the last body script has finished executing, so
+   by then loadModels/initSetup/openSession/openDrawer etc. — from
+   lab-session.js, drawer.js, overview.js, runs.js — already exist. */
 async function boot() {
   initResearchWorkspace();
   loadOverview();

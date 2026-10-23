@@ -34,10 +34,10 @@
     if (entry.diag.target_token_id != null) {
       const found = entry.diag.layers.flatMap(layer => layer.top || [])
         .find(token => token.token_id === entry.diag.target_token_id);
-      return { id: entry.diag.target_token_id, label: diagnosticState.target || found?.token || 'token-alvo' };
+      return { id: entry.diag.target_token_id, label: diagnosticState.target || found?.token || 'target token' };
     }
     const final = leader(entry.diag.layers.at(-1));
-    return { id: final?.token_id ?? null, label: final?.token || 'token final' };
+    return { id: final?.token_id ?? null, label: final?.token || 'final token' };
   }
 
   function trajectory(entry, key) {
@@ -111,16 +111,16 @@
     const model = first?.diag.model || {};
     const metrics = diagnosticState.metrics;
     const tracked = first ? getTrackedToken(first) : { label: '—' };
-    return `<section class="diag-summary" aria-label="Resumo da execução">
-      <div class="run-context"><span class="eyebrow">Execução concluída</span><strong>${escapeHtml(model.name || model.model || model.architecture || 'Modelo Transformers')}</strong><span>${diagnosticState.entries.map(entry => `<i style="--condition:${entry.color}"></i>${escapeHtml(entry.name)}`).join(' · ')}</span></div>
-      ${metricCard('Token analisado', tracked.label, 'Token-alvo informado ou, na ausência dele, líder da última camada.')}
-      ${metricCard('Camadas', String(first.diag.num_layers ?? first.diag.layers.length), 'Número de blocos decoder observados no forward pass.')}
-      ${metricCard('Primeira emergência observável', metrics.emergence == null ? 'não observada' : `L${metrics.emergence}`, 'Primeiro ponto em que o score projetado atinge 10% do valor final, com piso de 0,1%. É uma heurística correlacional, não causa.')}
-      ${metricCard('Maior crescimento', `L${metrics.jump}`, 'Maior aumento do score projetado entre duas camadas consecutivas.')}
-      ${metricCard('Maior separação', metrics.separation == null ? 'uma condição' : `L${metrics.separation}`, 'Maior diferença absoluta do token-alvo; sem alvo, usa 1 − sobreposição do top-k.')}
-      ${metricCard('Estável após', metrics.stable == null ? 'não estável' : `L${metrics.stable}`, 'Primeira camada a partir da qual o token líder final permanece continuamente em rank 1.')}
-      ${metricCard('Confiança final', percent(metrics.finalConfidence), 'Probabilidade softmax do token em rank 1 na última camada.')}
-      ${metricCard('Entropia final', metrics.finalEntropy == null ? 'indisponível' : `${number(metrics.finalEntropy, 2)} nat`, 'Entropia sobre o vocabulário completo. Execuções antigas podem não fornecer esta métrica.')}
+    return `<section class="diag-summary" aria-label="Run summary">
+      <div class="run-context"><span class="eyebrow">Run completed</span><strong>${escapeHtml(model.name || model.model || model.architecture || 'Transformers model')}</strong><span>${diagnosticState.entries.map(entry => `<i style="--condition:${entry.color}"></i>${escapeHtml(conditionText(entry.name))}`).join(' · ')}</span></div>
+      ${metricCard('Analyzed token', tracked.label, 'Supplied target token or, if absent, the leading token in the final layer.')}
+      ${metricCard('Layers', String(first.diag.num_layers ?? first.diag.layers.length), 'Number of decoder blocks observed in the forward pass.')}
+      ${metricCard('First observable emergence', metrics.emergence == null ? 'not observed' : `L${metrics.emergence}`, 'First point where the projected score reaches 10% of its final value, with a floor of 0.1%. This is a correlational heuristic, not causation.')}
+      ${metricCard('Largest increase', `L${metrics.jump}`, 'Largest increase in projected score between two consecutive layers.')}
+      ${metricCard('Largest separation', metrics.separation == null ? 'one condition' : `L${metrics.separation}`, 'Largest absolute target-token difference; without a target, uses 1 − top-k overlap.')}
+      ${metricCard('Stable after', metrics.stable == null ? 'not stable' : `L${metrics.stable}`, 'First layer after which the final leading token continuously remains at rank 1.')}
+      ${metricCard('Final confidence', percent(metrics.finalConfidence), 'Softmax probability of the rank-1 token in the final layer.')}
+      ${metricCard('Final entropy', metrics.finalEntropy == null ? 'unavailable' : `${number(metrics.finalEntropy, 2)} nat`, 'Entropy over the full vocabulary. Older runs may not provide this metric.')}
     </section>`;
   }
 
@@ -143,9 +143,9 @@
     const count = layerCount();
     const x = index => left + index * (width - left - right) / Math.max(1, count - 1);
     const available = {
-      target: { label: 'Token analisado', color: cssColor('--accent'), probability: true },
-      confidence: { label: 'Confiança', color: cssColor('--ok'), probability: true },
-      entropy: { label: 'Entropia', color: cssColor('--pane-c') },
+      target: { label: 'Analyzed token', color: cssColor('--accent'), probability: true },
+      confidence: { label: 'Confidence', color: cssColor('--ok'), probability: true },
+      entropy: { label: 'Entropy', color: cssColor('--pane-c') },
       delta: { label: 'Delta residual', color: cssColor('--pane-a') },
     };
     const all = [];
@@ -165,35 +165,35 @@
       return `<path d="${linePath(series.values, x, y)}" stroke="${color}" stroke-dasharray="${dash}" class="series-path" data-series="${series.key}"/>`;
     }).join('');
     const markers = [
-      ['emergence', diagnosticState.metrics.emergence, 'Emergência'],
-      ['jump', diagnosticState.metrics.jump, 'Maior salto'],
-      ['stable', diagnosticState.metrics.stable, 'Estável'],
-      ['separation', diagnosticState.metrics.separation, 'Separação'],
+      ['emergence', diagnosticState.metrics.emergence, 'Emergence'],
+      ['jump', diagnosticState.metrics.jump, 'Largest jump'],
+      ['stable', diagnosticState.metrics.stable, 'Stable'],
+      ['separation', diagnosticState.metrics.separation, 'Separation'],
     ].filter(([, index]) => index != null).map(([kind, index, label], markerIndex) => `<line x1="${x(index)}" y1="${top}" x2="${x(index)}" y2="${height - bottom}" class="event-line ${kind}"/><text x="${x(index) + 5}" y="${top + 13 + markerIndex * 13}" class="event-label">${label} · L${index}</text>`).join('');
     const selected = x(activeLayer());
-    const overlays = Array.from({ length: count }, (_, index) => `<rect x="${x(index) - Math.max(5, (width - left - right) / Math.max(1, count - 1) / 2)}" y="${top}" width="${Math.max(10, (width - left - right) / Math.max(1, count - 1))}" height="${height - top - bottom}" class="layer-hit" data-layer="${index}" tabindex="0" aria-label="Camada ${index}"/>`).join('');
+    const overlays = Array.from({ length: count }, (_, index) => `<rect x="${x(index) - Math.max(5, (width - left - right) / Math.max(1, count - 1) / 2)}" y="${top}" width="${Math.max(10, (width - left - right) / Math.max(1, count - 1))}" height="${height - top - bottom}" class="layer-hit" data-layer="${index}" tabindex="0" aria-label="Layer ${index}"/>`).join('');
     const legend = Object.entries(available).map(([key, config]) => {
       const hasData = all.some(series => series.key === key);
       return `<label class="series-toggle ${hasData ? '' : 'unavailable'}"><input type="checkbox" data-toggle-series="${key}" ${diagnosticState.visible.has(key) && hasData ? 'checked' : ''} ${hasData ? '' : 'disabled'}><i style="--series:${config.color}"></i>${config.label}</label>`;
     }).join('');
-    const svg = `<div class="chart-legend">${legend}</div><div class="chart-stage"><svg class="trajectory-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Trajetória normalizada das métricas por camada"><g class="chart-grid">${grid}</g>${markers}${paths}<line x1="${selected}" y1="${top}" x2="${selected}" y2="${height - bottom}" class="selected-line" data-sync-left="${left}" data-sync-right="${right}" data-sync-width="${width}"/>${overlays}<text x="${left}" y="${height - 12}">L0</text><text x="${width - right}" y="${height - 12}" text-anchor="end">L${count - 1}</text></svg><div class="chart-hover" id="diag-hover" hidden></div></div>`;
-    return chartCard('Trajetória por camada', 'Séries normalizadas para leitura conjunta; o hover mostra os valores reais.', svg, 'trajectory-card');
+    const svg = `<div class="chart-legend">${legend}</div><div class="chart-stage"><svg class="trajectory-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Normalized metric trajectories by layer"><g class="chart-grid">${grid}</g>${markers}${paths}<line x1="${selected}" y1="${top}" x2="${selected}" y2="${height - bottom}" class="selected-line" data-sync-left="${left}" data-sync-right="${right}" data-sync-width="${width}"/>${overlays}<text x="${left}" y="${height - 12}">L0</text><text x="${width - right}" y="${height - 12}" text-anchor="end">L${count - 1}</text></svg><div class="chart-hover" id="diag-hover" hidden></div></div>`;
+    return chartCard('Trajectory by layer', 'Normalized series for joint viewing; hover shows actual values.', svg, 'trajectory-card');
   }
 
   function replayControls() {
     const max = Math.max(0, layerCount() - 1);
     const metrics = diagnosticState.metrics;
-    return `<section class="replay-bar" aria-label="Replay por camada">
+    return `<section class="replay-bar" aria-label="Replay by layer">
       <div><span class="eyebrow">Replay</span><strong>L<span id="replay-layer">${diagnosticState.selectedLayer}</span></strong></div>
-      <button class="transport" data-replay="first" aria-label="Primeira camada">|‹</button>
-      <button class="transport" data-replay="previous" aria-label="Camada anterior">‹</button>
-      <button class="transport play" data-replay="play" aria-label="Reproduzir">${diagnosticState.playing ? 'Ⅱ' : '▶'}</button>
-      <button class="transport" data-replay="next" aria-label="Próxima camada">›</button>
-      <button class="transport" data-replay="last" aria-label="Última camada">›|</button>
-      <input id="layer-slider" type="range" min="0" max="${max}" value="${diagnosticState.selectedLayer}" aria-label="Camada selecionada">
-      <label class="speed-label">Velocidade <select id="replay-speed" aria-label="Velocidade do replay"><option value="1400">0,5×</option><option value="900" ${diagnosticState.speed === 900 ? 'selected' : ''}>1×</option><option value="450">2×</option></select></label>
-      ${metrics.separation == null ? '' : `<button class="btn" data-jump-layer="${metrics.separation}">Maior separação</button>`}
-      ${metrics.stable == null ? '' : `<button class="btn" data-jump-layer="${metrics.stable}">Estabilização</button>`}
+      <button class="transport" data-replay="first" aria-label="First layer">|‹</button>
+      <button class="transport" data-replay="previous" aria-label="Previous layer">‹</button>
+      <button class="transport play" data-replay="play" aria-label="Play">${diagnosticState.playing ? 'Ⅱ' : '▶'}</button>
+      <button class="transport" data-replay="next" aria-label="Next layer">›</button>
+      <button class="transport" data-replay="last" aria-label="Last layer">›|</button>
+      <input id="layer-slider" type="range" min="0" max="${max}" value="${diagnosticState.selectedLayer}" aria-label="Selected layer">
+      <label class="speed-label">Speed <select id="replay-speed" aria-label="Replay speed"><option value="1400">0.5×</option><option value="900" ${diagnosticState.speed === 900 ? 'selected' : ''}>1×</option><option value="450">2×</option></select></label>
+      ${metrics.separation == null ? '' : `<button class="btn" data-jump-layer="${metrics.separation}">Largest separation</button>`}
+      ${metrics.stable == null ? '' : `<button class="btn" data-jump-layer="${metrics.stable}">Stabilization</button>`}
     </section>`;
   }
 
@@ -210,7 +210,7 @@
   function heatmap() {
     const entry = diagnosticState.entries[0];
     const candidates = candidateColumns();
-    if (!candidates.length) return chartCard('Mapa de candidatos', 'Camada × token', emptyState('Top-k vazio', 'A execução não retornou candidatos.'), 'heatmap-card');
+    if (!candidates.length) return chartCard('Candidate map', 'Layer × token', emptyState('Empty top-k', 'The run returned no candidates.'), 'heatmap-card');
     const cellW = 112, cellH = 30, left = 54, top = 46;
     const width = left + candidates.length * cellW + 8, height = top + entry.diag.layers.length * cellH + 8;
     const max = Math.max(...entry.diag.layers.flatMap(layer => layer.top || []).map(token => token.prob), 1e-9);
@@ -224,8 +224,8 @@
       }).join('');
       return `<text x="${left - 10}" y="${top + row * cellH + 20}" text-anchor="end" class="layer-label ${activeLayer() === row ? 'active' : ''}">L${row}</text>${cells}`;
     }).join('');
-    const svg = `<div class="heat-scroll"><svg class="heatmap-svg" viewBox="0 0 ${width} ${height}" style="min-width:${Math.min(width, 720)}px" role="img" aria-label="Heatmap de probabilidade dos candidatos por camada">${labels}${rows}</svg></div>`;
-    return chartCard('Mapa de candidatos', 'Intensidade = probabilidade no top-k · clique para selecionar a camada', svg, 'heatmap-card');
+    const svg = `<div class="heat-scroll"><svg class="heatmap-svg" viewBox="0 0 ${width} ${height}" style="min-width:${Math.min(width, 720)}px" role="img" aria-label="Candidate probability heatmap by layer">${labels}${rows}</svg></div>`;
+    return chartCard('Candidate map', 'Intensity = top-k probability · click to select a layer', svg, 'heatmap-card');
   }
 
   function bumpChart() {
@@ -250,7 +250,7 @@
       return `<path d="${path}" stroke="${palette[ci]}" class="bump-line"/><text x="${last ? x(last.index) + 8 : width - right}" y="${last ? y(last.rank) + 4 : top}" fill="${palette[ci]}">${escapeHtml(candidate.token)}</text>`;
     }).join('');
     const ranks = candidates.map((_, index) => `<text x="${left - 12}" y="${y(index + 1) + 4}" text-anchor="end">#${index + 1}</text><line x1="${left}" y1="${y(index + 1)}" x2="${width - right}" y2="${y(index + 1)}"/>`).join('');
-    return chartCard('Evolução dos candidatos', 'Ranking no top-k; lacunas indicam que o token saiu dos candidatos retornados.', `<svg class="bump-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Evolução do ranking dos principais candidatos">${ranks}${lines}<line x1="${x(activeLayer())}" y1="${top}" x2="${x(activeLayer())}" y2="${height - bottom}" class="selected-line" data-sync-left="${left}" data-sync-right="${right}" data-sync-width="${width}"/></svg>`);
+    return chartCard('Candidate evolution', 'Top-k ranking; gaps indicate that the token left the returned candidates.', `<svg class="bump-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Ranking evolution of the leading candidates">${ranks}${lines}<line x1="${x(activeLayer())}" y1="${top}" x2="${x(activeLayer())}" y2="${height - bottom}" class="selected-line" data-sync-left="${left}" data-sync-right="${right}" data-sync-width="${width}"/></svg>`);
   }
 
   function layerDetails() {
@@ -260,22 +260,22 @@
       if (!layer) return '';
       const max = leader(layer)?.prob || 1;
       const bars = (layer.top || []).slice(0, 7).map((token, rank) => `<li><span class="rank">${rank + 1}</span><span class="token">${escapeHtml(token.token || '∅')}</span><span class="prob">${percent(token.prob)}</span><i style="width:${clamp(token.prob / max) * 100}%"></i></li>`).join('');
-      return `<div class="condition-detail"><h3><i style="--condition:${entry.color}"></i>${escapeHtml(entry.name)}</h3><ul class="token-bars">${bars || '<li class="muted">Top-k vazio</li>'}</ul><dl class="layer-stats"><div><dt>Confiança</dt><dd>${percent(leader(layer)?.prob)}</dd></div><div><dt>Entropia</dt><dd>${layer.entropy == null ? '—' : `${number(layer.entropy)} nat`}</dd></div><div><dt>Norma</dt><dd>${number(layer.hidden_norm)}</dd></div><div><dt>Δ residual</dt><dd>${number(layer.delta_norm)}</dd></div></dl></div>`;
+      return `<div class="condition-detail"><h3><i style="--condition:${entry.color}"></i>${escapeHtml(conditionText(entry.name))}</h3><ul class="token-bars">${bars || '<li class="muted">Empty top-k</li>'}</ul><dl class="layer-stats"><div><dt>Confidence</dt><dd>${percent(leader(layer)?.prob)}</dd></div><div><dt>Entropy</dt><dd>${layer.entropy == null ? '—' : `${number(layer.entropy)} nat`}</dd></div><div><dt>Norm</dt><dd>${number(layer.hidden_norm)}</dd></div><div><dt>Δ residual</dt><dd>${number(layer.delta_norm)}</dd></div></dl></div>`;
     }).join('');
     const divergence = divergenceValues()[index];
-    return chartCard(`Detalhes da camada L${index}`, divergence == null ? 'Leitura por condição' : `Diferença entre condições: ${number(divergence, 4)}`, blocks, 'detail-card');
+    return chartCard(`Layer details L${index}`, divergence == null ? 'Readout by condition' : `Difference between conditions: ${number(divergence, 4)}`, blocks, 'detail-card');
   }
 
   function comparison() {
-    if (diagnosticState.entries.length < 2) return chartCard('Divergência entre condições', 'Uma condição disponível', emptyState('Comparação indisponível', 'Selecione uma execução com duas condições para ver trajetórias sincronizadas.'), 'comparison-card');
+    if (diagnosticState.entries.length < 2) return chartCard('Divergence between conditions', 'One condition available', emptyState('Comparison unavailable', 'Select a run with two conditions to see synchronized trajectories.'), 'comparison-card');
     const [a, b] = diagnosticState.entries, count = Math.min(a.diag.layers.length, b.diag.layers.length);
     const width = 1100, height = 330, left = 52, right = 20, top = 25, bottom = 38;
     const x = i => left + i * (width - left - right) / Math.max(1, count - 1);
     const tracks = [
       { key: 'target', label: 'Token', a: trajectory(a, 'target'), b: trajectory(b, 'target') },
-      { key: 'confidence', label: 'Confiança', a: trajectory(a, 'confidence'), b: trajectory(b, 'confidence') },
-      { key: 'entropy', label: 'Entropia', a: trajectory(a, 'entropy'), b: trajectory(b, 'entropy') },
-      { key: 'norm', label: 'Norma', a: trajectory(a, 'norm'), b: trajectory(b, 'norm') },
+      { key: 'confidence', label: 'Confidence', a: trajectory(a, 'confidence'), b: trajectory(b, 'confidence') },
+      { key: 'entropy', label: 'Entropy', a: trajectory(a, 'entropy'), b: trajectory(b, 'entropy') },
+      { key: 'norm', label: 'Norm', a: trajectory(a, 'norm'), b: trajectory(b, 'norm') },
       { key: 'delta', label: 'Δ residual', a: trajectory(a, 'delta'), b: trajectory(b, 'delta') },
     ].filter(track => [...track.a, ...track.b].some(value => value != null));
     const trackH = (height - top - bottom) / tracks.length;
@@ -286,12 +286,12 @@
     }).join('');
     const divergences = divergenceValues(), maxDiv = Math.max(...divergences, 1e-9);
     const bars = divergences.map((value, index) => `<rect x="${x(index) - 2}" y="${height - bottom - 8 * value / maxDiv}" width="4" height="${8 * value / maxDiv}" class="divergence-tick"/>`).join('');
-    const legend = `<div class="condition-legend"><span><i style="--condition:${a.color}"></i>${escapeHtml(a.name)}</span><span><i style="--condition:${b.color}"></i>${escapeHtml(b.name)} · tracejado</span><span class="muted">marcas inferiores = divergência</span></div>`;
-    return chartCard('Divergência entre condições', 'Mesmos eixos por métrica; valores escalados dentro de cada faixa.', `${legend}<svg class="comparison-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Comparação sincronizada entre as duas condições">${content}${bars}<line x1="${x(activeLayer())}" y1="${top}" x2="${x(activeLayer())}" y2="${height - bottom}" class="selected-line" data-sync-left="${left}" data-sync-right="${right}" data-sync-width="${width}"/></svg>`, 'comparison-card');
+    const legend = `<div class="condition-legend"><span><i style="--condition:${a.color}"></i>${escapeHtml(conditionText(a.name))}</span><span><i style="--condition:${b.color}"></i>${escapeHtml(conditionText(b.name))} · dashed</span><span class="muted">bottom marks = divergence</span></div>`;
+    return chartCard('Divergence between conditions', 'Same axes per metric; values scaled within each track.', `${legend}<svg class="comparison-svg" viewBox="0 0 ${width} ${height}" role="img" aria-label="Synchronized comparison between the two conditions">${content}${bars}<line x1="${x(activeLayer())}" y1="${top}" x2="${x(activeLayer())}" y2="${height - bottom}" class="selected-line" data-sync-left="${left}" data-sync-right="${right}" data-sync-width="${width}"/></svg>`, 'comparison-card');
   }
 
   function technicalData() {
-    return `<details class="technical-data"><summary>Dados técnicos <span>payload, shapes e dtype</span></summary><div class="technical-head"><p>Dados brutos do endpoint. Nenhuma ativação é enviada ao navegador.</p><button class="btn" id="copy-diag-json">Copiar JSON</button></div><pre>${escapeHtml(JSON.stringify(diagnosticState.entries.map(entry => ({ condition: entry.name, ...entry.diag })), null, 2))}</pre></details>`;
+    return `<details class="technical-data"><summary>Technical data <span>payload, shapes and dtype</span></summary><div class="technical-head"><p>Raw endpoint data. No activation is sent to the browser.</p><button class="btn" id="copy-diag-json">Copy JSON</button></div><pre>${escapeHtml(JSON.stringify(diagnosticState.entries.map(entry => ({ condition: entry.name, ...entry.diag })), null, 2))}</pre></details>`;
   }
 
   function emptyState(title, message, loading = false) {
@@ -321,9 +321,9 @@
     if (!tip) return;
     const rows = diagnosticState.entries.map(entry => {
       const current = layerAt(entry, layer);
-      return `<b><i style="--condition:${entry.color}"></i>${escapeHtml(entry.name)}</b><span>${escapeHtml(leader(current)?.token || '—')} · ${percent(leader(current)?.prob)}</span><span>alvo ${percent(targetValue(current))}</span><span>H ${current?.entropy == null ? '—' : number(current.entropy)} · Δ ${number(current?.delta_norm)}</span>`;
+      return `<b><i style="--condition:${entry.color}"></i>${escapeHtml(conditionText(entry.name))}</b><span>${escapeHtml(leader(current)?.token || '—')} · ${percent(leader(current)?.prob)}</span><span>target ${percent(targetValue(current))}</span><span>H ${current?.entropy == null ? '—' : number(current.entropy)} · Δ ${number(current?.delta_norm)}</span>`;
     }).join('');
-    tip.innerHTML = `<strong>Camada ${layer}</strong>${rows}`;
+    tip.innerHTML = `<strong>Layer ${layer}</strong>${rows}`;
     tip.hidden = false;
     const stage = tip.parentElement.getBoundingClientRect();
     tip.style.left = `${clamp(event.clientX - stage.left + 12, 8, stage.width - 245)}px`;
@@ -386,14 +386,14 @@
       hit.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') updateSelection(hit.dataset.layer); });
     });
     document.querySelectorAll('.heat-cell').forEach(cell => {
-      const describe = () => cell.setAttribute('aria-label', `Camada ${cell.dataset.layer}, token ${cell.dataset.token}, score ${percent(Number(cell.dataset.value))}, rank ${cell.dataset.rank || 'fora do top-k'}, variação ${cell.dataset.delta === '' ? 'indisponível' : percent(Number(cell.dataset.delta))}`);
+      const describe = () => cell.setAttribute('aria-label', `Layer ${cell.dataset.layer}, token ${cell.dataset.token}, score ${percent(Number(cell.dataset.value))}, rank ${cell.dataset.rank || 'outside top-k'}, change ${cell.dataset.delta === '' ? 'unavailable' : percent(Number(cell.dataset.delta))}`);
       describe();
       cell.addEventListener('click', () => updateSelection(cell.dataset.layer));
       cell.addEventListener('keydown', event => { if (event.key === 'Enter' || event.key === ' ') updateSelection(cell.dataset.layer); });
     });
     q('#copy-diag-json')?.addEventListener('click', async event => {
       await navigator.clipboard.writeText(JSON.stringify(diagnosticState.entries.map(entry => ({ condition: entry.name, ...entry.diag })), null, 2));
-      event.target.textContent = 'Copiado'; setTimeout(() => { event.target.textContent = 'Copiar JSON'; }, 1200);
+      event.target.textContent = 'Copied'; setTimeout(() => { event.target.textContent = 'Copy JSON'; }, 1200);
     });
   }
 
@@ -401,7 +401,7 @@
     const select = q('#diag-pair'), status = q('#diag-status');
     if (!select) return;
     const previous = select.value;
-    status.textContent = 'Atualizando execuções…';
+    status.textContent = 'Refreshing runs…';
     try {
       const response = await fetch(`${API_ROOT}/requests?limit=200`);
       if (!response.ok) throw new Error(`HTTP ${response.status}`);
@@ -412,13 +412,13 @@
         if (request.condition && !group.conditions.includes(request.condition)) group.conditions.push(request.condition);
         pairs.set(request.pair_id, group);
       }
-      select.innerHTML = '<option value="">— selecione uma execução —</option>' + [...pairs.values()].map(group => `<option value="${escapeHtml(group.id)}">${escapeHtml(`${(group.when || '').slice(5, 16).replace('T', ' ')} · ${group.model || '?'} · ${group.conditions.join(' × ') || group.id.slice(0, 8)}`)}</option>`).join('');
+      select.innerHTML = '<option value="">— select a run —</option>' + [...pairs.values()].map(group => `<option value="${escapeHtml(group.id)}">${escapeHtml(`${(group.when || '').slice(5, 16).replace('T', ' ')} · ${group.model || '?'} · ${group.conditions.map(conditionText).join(' × ') || group.id.slice(0, 8)}`)}</option>`).join('');
       if (previous) select.value = previous;
-      status.textContent = pairs.size ? `${pairs.size} execuções disponíveis` : 'Nenhuma execução comparável disponível';
-      if (!pairs.size) q('#diag-results').innerHTML = emptyState('Diagnóstico indisponível', 'Crie uma execução com engine Transformers para habilitar a leitura por camada.');
+      status.textContent = pairs.size ? `${pairs.size} available runs` : 'No comparable runs available';
+      if (!pairs.size) q('#diag-results').innerHTML = emptyState('Diagnostics unavailable', 'Create a run with the Transformers engine to enable per-layer inspection.');
     } catch (error) {
-      status.textContent = 'Falha ao carregar execuções';
-      q('#diag-results').innerHTML = emptyState('Erro da API', error.message);
+      status.textContent = 'Failed to load runs';
+      q('#diag-results').innerHTML = emptyState('API error', error.message);
     }
   }
 
@@ -426,15 +426,15 @@
     const pairId = q('#diag-pair').value, target = q('#diag-target').value.trim();
     const status = q('#diag-status'), container = q('#diag-results'), button = q('#btn-diagnose');
     stopReplay();
-    if (!pairId) { status.textContent = 'Selecione uma execução.'; q('#diag-pair').focus(); return; }
-    button.disabled = true; status.textContent = 'Carregando diagnóstico…';
-    container.innerHTML = emptyState('Lendo representações', 'O modelo está executando um forward pass por condição.', true);
+    if (!pairId) { status.textContent = 'Select a run.'; q('#diag-pair').focus(); return; }
+    button.disabled = true; status.textContent = 'Loading diagnostics…';
+    container.innerHTML = emptyState('Reading representations', 'The model is running one forward pass per condition.', true);
     try {
       const comparisonResponse = await fetch(`${API_ROOT}/compare?pair_id=${encodeURIComponent(pairId)}`);
-      if (!comparisonResponse.ok) throw new Error(`Comparação indisponível (HTTP ${comparisonResponse.status})`);
+      if (!comparisonResponse.ok) throw new Error(`Comparison unavailable (HTTP ${comparisonResponse.status})`);
       const comparisonData = await comparisonResponse.json();
       const requests = comparisonData.requests || [];
-      if (!requests.length) throw new Error('A execução não contém condições diagnosticáveis.');
+      if (!requests.length) throw new Error('The run contains no conditions that support diagnostics.');
       const settled = await Promise.allSettled(requests.map(async (request, index) => {
         const response = await fetch(`${API_ROOT}/requests/${request.id}/diagnostics`, {
           method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -447,14 +447,14 @@
       const entries = settled.filter(result => result.status === 'fulfilled').map(result => result.value);
       const failures = settled.filter(result => result.status === 'rejected');
       if (!entries.length) throw failures[0].reason;
-      if (!entries.some(entry => entry.diag.layers?.length)) throw new Error('O endpoint retornou uma execução sem camadas.');
+      if (!entries.some(entry => entry.diag.layers?.length)) throw new Error('The endpoint returned a run without layers.');
       diagnosticState.entries = entries; diagnosticState.target = target;
       diagnosticState.selectedLayer = 0; diagnosticState.hoverLayer = null;
-      status.textContent = failures.length ? `${entries.length} condição disponível · ${failures.length} indisponível` : `${entries.length} condição(ões) · ${layerCount()} camadas`;
+      status.textContent = failures.length ? `${entries.length} condition available · ${failures.length} unavailable` : `${entries.length} condition(s) · ${layerCount()} layers`;
       renderDashboard();
     } catch (error) {
-      status.textContent = 'Diagnóstico indisponível';
-      container.innerHTML = emptyState('Não foi possível executar', error.message || String(error));
+      status.textContent = 'Diagnostics unavailable';
+      container.innerHTML = emptyState('Could not run', error.message || String(error));
     } finally { button.disabled = false; }
   }
 
@@ -465,8 +465,8 @@
   q('#btn-diagnose').onclick = run;
   q('#btn-diag-reload').onclick = loadPairs;
   q('#diag-target')?.addEventListener('keydown', event => { if (event.key === 'Enter') run(); });
-  // Navegar para qualquer outra aba pausa o replay; o router dispara este
-  // evento a cada troca de view (inclusive para abas criadas depois desta).
+  // Navigating to another tab pauses replay; the router fires this
+  // event on each view change (including tabs created after this one).
   document.addEventListener('lombo:viewchange', event => {
     if (event.detail.view !== 'diagnostics') stopReplay();
   });

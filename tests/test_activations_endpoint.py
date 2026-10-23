@@ -31,7 +31,7 @@ class FakeCursor:
 class FakeConn:
     def __init__(self, engine_name="transformers", prompt=None):
         self.engine_name = engine_name
-        self.prompt = prompt if prompt is not None else [{"role": "user", "content": "oi"}]
+        self.prompt = prompt if prompt is not None else [{"role": "user", "content": "hi"}]
 
     def execute(self, sql, params):
         if "FROM requests" in sql:
@@ -88,7 +88,7 @@ def test_activations_endpoint_returns_layer_payload():
 
     assert result["num_layers"] == 1
     assert result["modules"] == ["attn", "mlp", "resid"]
-    assert engine.calls == [([{"role": "user", "content": "oi"}], -1)]
+    assert engine.calls == [([{"role": "user", "content": "hi"}], -1)]
 
 
 def test_activations_endpoint_rejects_non_transformers():
@@ -122,7 +122,7 @@ def test_activations_inspect_returns_detail_payload():
 
     assert result["layer_index"] == 3
     assert result["module"] == "mlp"
-    assert engine.inspect_calls == [([{"role": "user", "content": "oi"}], 3, "mlp", -1, 8, 16)]
+    assert engine.inspect_calls == [([{"role": "user", "content": "hi"}], 3, "mlp", -1, 8, 16)]
 
 
 def test_activations_inspect_rejects_invalid_module():

@@ -1,9 +1,9 @@
-"""Schema SQLite e acesso ao banco do LomboBench.
+"""SQLite schema and database access for LomboBench.
 
-Toda ESCRITA passa por uma fila com escritor único (`DbWriter`): painéis do Lab
-e clientes externos podem concluir gerações simultaneamente, e as gravações
-nunca devem disputar o banco em paralelo (evita "database is locked").
-Leituras são feitas diretamente (WAL permite leitores concorrentes).
+All WRITES pass through a queue with a single writer (`DbWriter`): Lab panes
+and external clients can finish generations simultaneously, and writes must
+never contend for the database in parallel (avoids "database is locked").
+Reads are performed directly (WAL allows concurrent readers).
 """
 
 from __future__ import annotations
@@ -19,12 +19,12 @@ log = logging.getLogger("lombo.db")
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS requests (
     id                      TEXT PRIMARY KEY,
-    -- linha temporal da geração (medida pelo proxy)
+    -- generation timeline (measured by the proxy)
     started_at              TEXT NOT NULL,
     first_token_at          TEXT,
     completed_at            TEXT,
     time_to_first_token_ms  REAL,
-    -- identificação
+    -- identification
     endpoint                TEXT NOT NULL,
     model                   TEXT,
     stream                  INTEGER NOT NULL DEFAULT 0,
@@ -33,28 +33,28 @@ CREATE TABLE IF NOT EXISTS requests (
     turn_id                 TEXT,
     branch_id               TEXT,
     parent_request_id       TEXT,
-    -- desenho experimental
+    -- experimental design
     experiment              TEXT,
     condition               TEXT,
     pair_id                 TEXT,
     replicate               INTEGER,
     environment_id          INTEGER REFERENCES environments(id),
-    -- auditoria/replay: body integral, nunca reconstruído
+    -- audit/replay: full body, never reconstructed
     request_body_raw        TEXT,
-    -- camadas de parâmetros: NUNCA fundidas entre si
-    requested_params_json   TEXT,   -- exatamente o que o cliente enviou
-    inferred_params_json    TEXT,   -- efetivos inferidos pelo proxy (com origem)
-    confirmed_params_json   TEXT,   -- só o que a resposta desta requisição confirma
-    observed_runtime_json   TEXT,   -- estado do runtime (/api/ps); NÃO é confirmação
-    params_diff_json        TEXT,   -- o que difere do baseline do modelo
-    -- conteúdo
+    -- parameter layers: NEVER merged
+    requested_params_json   TEXT,   -- exactly what the client sent
+    inferred_params_json    TEXT,   -- effective values inferred by the proxy (with provenance)
+    confirmed_params_json   TEXT,   -- only what this request's response confirms
+    observed_runtime_json   TEXT,   -- runtime state (/api/ps); NOT confirmation
+    params_diff_json        TEXT,   -- what differs from the model baseline
+    -- content
     system_prompt           TEXT,
     prompt_or_messages_json TEXT,
     response_text           TEXT,
-    thinking_text           TEXT,   -- separado da resposta, nunca concatenado
+    thinking_text           TEXT,   -- separate from the response, never concatenated
     status_code             INTEGER,
     error                   TEXT,
-    -- métricas reportadas pelo Ollama
+    -- metrics reported by Ollama
     total_duration_ns       INTEGER,
     load_duration_ns        INTEGER,
     prompt_eval_count       INTEGER,
@@ -63,7 +63,7 @@ CREATE TABLE IF NOT EXISTS requests (
     eval_duration_ns        INTEGER,
     tokens_per_second       REAL,
     done_reason             TEXT,
-    -- Fase 2 (regulador autônomo)
+    -- Phase 2 (autonomous regulator)
     regulator_action_json   TEXT
 );
 CREATE INDEX IF NOT EXISTS idx_requests_model      ON requests(model);
@@ -77,8 +77,8 @@ CREATE TABLE IF NOT EXISTS model_baselines (
     digest                 TEXT,
     captured_at            TEXT NOT NULL,
     modelfile_text         TEXT,
-    parameters_raw         TEXT,   -- bloco `parameters` do POST /api/show, texto original
-    parameters_parsed_json TEXT,   -- derivado do bruto; nunca o substitui
+    parameters_raw         TEXT,   -- `parameters` block from POST /api/show, original text
+    parameters_parsed_json TEXT,   -- derived from raw data; never replaces it
     template_text          TEXT,
     system_text            TEXT,
     details_json           TEXT
@@ -197,7 +197,7 @@ def get_or_create_environment(conn: sqlite3.Connection, env: dict[str, Any]) -> 
 
 
 class DbWriter:
-    """Fila assíncrona com um único consumidor: serializa todas as escritas."""
+    """Asynchronous queue with a single consumer: serializes all writes."""
 
     def __init__(self, conn: sqlite3.Connection) -> None:
         self._conn = conn
@@ -214,8 +214,8 @@ class DbWriter:
                 break
             try:
                 fn(self._conn)
-            except Exception:  # nunca derrubar o escritor por causa de um registro
-                log.exception("falha ao gravar registro (registro descartado)")
+            except Exception:  # never stop the writer because of one record
+                log.exception("failed to write record (record discarded)")
             finally:
                 self._queue.task_done()
 

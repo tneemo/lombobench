@@ -1,4 +1,4 @@
-"""Métricas comportamentais heurísticas."""
+"""Heuristic behavioral metrics."""
 
 from lombo.behavior import HUMAN_LABELS, evaluate
 
@@ -12,15 +12,16 @@ def test_basic_lengths_and_ratios():
                   "thinking_text": None})
     assert m["response_chars"] == 33
     assert m["response_words"] == 8
-    assert 0 < m["repetition_rate"] < 1   # trigrama "um dois três" repete
+    assert 0 < m["repetition_rate"] < 1   # the Portuguese trigram repeats (preserve the exact character count)
     assert 0 < m["type_token_ratio"] <= 1
 
 
 def test_thinking_ratio_present_only_with_thinking():
-    m = _metrics({"response_text": "resposta", "thinking_text": "raciocínio longo"})
+    # Preserve the Portuguese thinking fixture: its exact character count is tested.
+    m = _metrics({"response_text": "answer", "thinking_text": "raciocínio longo"})
     assert m["thinking_chars"] == 16
     assert 0 < m["thinking_ratio"] < 1
-    assert "thinking_ratio" not in _metrics({"response_text": "resposta"})
+    assert "thinking_ratio" not in _metrics({"response_text": "answer"})
 
 
 def test_truncation_and_performance_passthrough():
@@ -34,9 +35,9 @@ def test_truncation_and_performance_passthrough():
 def test_json_validity_only_when_format_requested():
     m = _metrics({"response_text": '{"a": 1}'}, {"format": "json"})
     assert m["json_valid"] is True
-    m = _metrics({"response_text": "não é json"}, {"format": "json"})
+    m = _metrics({"response_text": "not json"}, {"format": "json"})
     assert m["json_valid"] is False
-    assert "json_valid" not in _metrics({"response_text": "não é json"}, {})
+    assert "json_valid" not in _metrics({"response_text": "not json"}, {})
 
 
 def test_human_labels_are_the_epistemic_set():

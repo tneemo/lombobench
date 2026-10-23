@@ -1,4 +1,4 @@
-/* ================= Benchmarks: quick-bench + perfil comparativo + histórico ================= */
+/* ================= Benchmarks: quick-bench + comparative profile + history ================= */
 'use strict';
 
 $('#bench-run').onclick = async () => {
@@ -6,11 +6,11 @@ $('#bench-run').onclick = async () => {
   const engine = $('#bench-engine').value;
   const model = $('#bench-model').value.trim();
   const prompt = $('#bench-prompt').value.trim();
-  if (!model || !prompt) { $('#bench-status').textContent = 'Informe modelo e prompt.'; return; }
+  if (!model || !prompt) { $('#bench-status').textContent = 'Enter a model and prompt.'; return; }
   button.disabled = true;
   $('#bench-status').textContent = engine === 'transformers'
-    ? 'Baixando/carregando o modelo (na primeira execução isso pode demorar)…'
-    : 'Executando…';
+    ? 'Downloading/loading the model (this may take a while on the first run)…'
+    : 'Running…';
   $('#bench-result').innerHTML = '';
   const started = performance.now();
   try {
@@ -25,13 +25,13 @@ $('#bench-run').onclick = async () => {
     if (!response.ok || data.error) throw new Error(data.error || `HTTP ${response.status}`);
     const elapsed = (performance.now() - started) / 1000;
     const text = data.message?.content || '';
-    $('#bench-status').textContent = `Concluído em ${elapsed.toFixed(2)}s · ${data.eval_count ?? '—'} tokens gerados`;
-    $('#bench-result').innerHTML = `<div class="hf-detail-section"><h2>Resposta real</h2><pre>${esc(text)}</pre></div>`;
+    $('#bench-status').textContent = `Completed in ${elapsed.toFixed(2)}s · ${data.eval_count ?? '—'} generated tokens`;
+    $('#bench-result').innerHTML = `<div class="hf-detail-section"><h2>Actual response</h2><pre>${esc(text)}</pre></div>`;
     updateBenchmarkSummary({ elapsed, model, engine, evalCount: data.eval_count,
       tps: data.eval_count && data.eval_duration ? data.eval_count / (data.eval_duration / 1e9) : null });
     loadBenchmarksHistory();
   } catch (error) {
-    $('#bench-status').textContent = `Falha: ${error.message}`;
+    $('#bench-status').textContent = `Failed: ${error.message}`;
   } finally { button.disabled = false; }
 };
 
@@ -54,7 +54,7 @@ window.loadBenchmarksHistory = async function loadBenchmarksHistory() {
     renderBenchmarkBars(summary.groups || []);
     renderBenchmarkHistoryChart(history.requests || []);
   } catch {
-    $('#bench-radar').innerHTML = emptyPanel('Proxy indisponível.');
+    $('#bench-radar').innerHTML = emptyPanel('Proxy unavailable.');
   }
 };
 
@@ -79,16 +79,16 @@ function renderBenchmarkRadar(summaryGroups, evalGroups) {
   }
   const top = [...byModel.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 3);
   if (top.length < 1) {
-    LomboCharts.dispose(el); el.innerHTML = emptyPanel('Sem execuções suficientes para montar o perfil ainda.');
+    LomboCharts.dispose(el); el.innerHTML = emptyPanel('Not enough runs to build a profile yet.');
     return;
   }
   const maxTps = Math.max(1, ...top.map(([, g]) => g.tps.length ? Math.max(...g.tps) : 0));
   const maxWords = Math.max(1, ...top.map(([m]) => (evalByModel.get(m)?.words || [0]).reduce((a, b) => a + b, 0) / (evalByModel.get(m)?.words.length || 1)));
   const indicators = [
     { name: 'tok/s', max: maxTps },
-    { name: 'sem repetição', max: 100 },
-    { name: 'sem truncar', max: 100 },
-    { name: 'consistência', max: 100 },
+    { name: 'no repetition', max: 100 },
+    { name: 'no truncation', max: 100 },
+    { name: 'consistency', max: 100 },
   ];
   const avg = arr => (arr && arr.length) ? arr.reduce((a, b) => a + b, 0) / arr.length : null;
   const series = top.map(([model, g]) => {
@@ -122,11 +122,11 @@ function renderBenchmarkBars(summaryGroups) {
     .map(([model, g]) => ({ model, n: g.n, tps: g.tps.reduce((a, b) => a + b, 0) / g.tps.length }))
     .sort((a, b) => b.tps - a.tps).slice(0, 10);
   if (!rows.length) {
-    LomboCharts.dispose(el); el.innerHTML = emptyPanel('Sem tok/s registrado ainda.');
+    LomboCharts.dispose(el); el.innerHTML = emptyPanel('No tok/s recorded yet.');
     return;
   }
   LomboCharts.bars(el, {
-    categories: rows.map(r => r.model), series: [{ name: 'tok/s médio', data: rows.map(r => r.tps) }],
+    categories: rows.map(r => r.model), series: [{ name: 'average tok/s', data: rows.map(r => r.tps) }],
   }, { horizontal: true, yName: 'tok/s', left: 140, labelWidth: 120 });
 }
 
@@ -136,7 +136,7 @@ function renderBenchmarkHistoryChart(requests) {
     .slice().reverse();
   if (points.length < 2) {
     LomboCharts.dispose(el);
-    el.innerHTML = emptyPanel('Rode alguns testes acima para ver o histórico de tok/s por execução.');
+    el.innerHTML = emptyPanel('Run a few tests above to see tok/s history per run.');
     return;
   }
   const byModel = new Map();

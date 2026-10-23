@@ -1,7 +1,7 @@
-"""API de análise (/_lombo/api/*): listagem, detalhe, agregações, export.
+"""Analysis API (/_lombo/api/*): listing, details, aggregations, export.
 
-Valores de parâmetros são sempre apresentados com sua camada (solicitado /
-inferido / confirmado) — a análise nunca funde as camadas.
+Parameter values are always presented with their layer (requested /
+inferred / confirmed) — analysis never merges the layers.
 """
 
 from __future__ import annotations
@@ -70,7 +70,7 @@ async def get_request(request: Request, request_id: str):
     conn = request.app.state.conn
     row = conn.execute("SELECT * FROM requests WHERE id = ?", (request_id,)).fetchone()
     if row is None:
-        raise HTTPException(404, "request não encontrada")
+        raise HTTPException(404, "request not found")
     result = _row_to_dict(row, parse_json=True)
     evals = conn.execute(
         "SELECT metric, value, source, created_at FROM evaluations WHERE request_id = ?",
@@ -134,7 +134,7 @@ def _resolve_trace_engine(state, request_id: str):
         (request_id,),
     ).fetchone()
     if row is None:
-        raise HTTPException(404, "request não encontrada")
+        raise HTTPException(404, "request not found")
 
     engine_name = "ollama"
     if row["lab_session_id"]:
@@ -146,15 +146,15 @@ def _resolve_trace_engine(state, request_id: str):
             engine_name = json.loads(session["base_config_json"] or "{}").get(
                 "engine", "ollama")
     if engine_name != "transformers":
-        raise HTTPException(409, "NNsight direto está disponível somente para Transformers")
+        raise HTTPException(409, "Direct NNsight is available only for Transformers")
 
     engine = state.transformer_engines.get(row["model"])
     if engine is None:
-        raise HTTPException(409, "modelo Transformers não está carregado; envie uma mensagem primeiro")
+        raise HTTPException(409, "Transformers model is not loaded; send a message first")
 
     prompt = json.loads(row["prompt_or_messages_json"] or "null")
     if prompt is None:
-        raise HTTPException(422, "request sem prompt ou mensagens para reexecutar")
+        raise HTTPException(422, "request has no prompt or messages to replay")
     return engine, prompt
 
 
@@ -163,13 +163,13 @@ async def trace_request(request: Request, request_id: str, body: TraceRequest):
     """Run the minimal opt-in NNsight trace for a Transformers Lab request."""
     engine, prompt = _resolve_trace_engine(request.app.state, request_id)
     if not engine.supports_trace():
-        raise HTTPException(503, "NNsight não está instalado ou o modelo não é compatível")
+        raise HTTPException(503, "NNsight is not installed or the model is incompatible")
     try:
         result = await asyncio.to_thread(engine.trace, prompt, body.layer_index)
     except (IndexError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(500, f"trace NNsight falhou: {exc}") from exc
+        raise HTTPException(500, f"NNsight trace failed: {exc}") from exc
     return result
 
 
@@ -183,14 +183,14 @@ async def diagnostics_request(request: Request, request_id: str, body: Diagnosti
     """
     engine, prompt = _resolve_trace_engine(request.app.state, request_id)
     if not engine.supports_diagnostics():
-        raise HTTPException(422, "arquitetura do modelo não suportada para diagnóstico de camadas")
+        raise HTTPException(422, "model architecture does not support layer diagnostics")
     try:
         result = await asyncio.to_thread(
             engine.trace_all_layers, prompt, body.target_token, body.top_k)
     except (IndexError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(500, f"diagnóstico de camadas falhou: {exc}") from exc
+        raise HTTPException(500, f"layer diagnostics failed: {exc}") from exc
     return result
 
 
@@ -205,14 +205,14 @@ async def attention_request(request: Request, request_id: str, body: AttentionRe
     """
     engine, prompt = _resolve_trace_engine(request.app.state, request_id)
     if not engine.supports_attention():
-        raise HTTPException(422, "arquitetura do modelo não suportada para mapa de atenção")
+        raise HTTPException(422, "model architecture does not support attention maps")
     try:
         result = await asyncio.to_thread(
             engine.attention, prompt, body.layer_index, body.head_index)
     except (IndexError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(500, f"mapa de atenção falhou: {exc}") from exc
+        raise HTTPException(500, f"attention map failed: {exc}") from exc
     return result
 
 
@@ -223,13 +223,13 @@ async def activations_request(request: Request, request_id: str, body: Activatio
     for the per-dimension detail of a single cell."""
     engine, prompt = _resolve_trace_engine(request.app.state, request_id)
     if not engine.supports_activations():
-        raise HTTPException(422, "arquitetura do modelo não suportada para captura de ativações")
+        raise HTTPException(422, "model architecture does not support activation capture")
     try:
         result = await asyncio.to_thread(engine.capture_activations, prompt, body.position)
     except (IndexError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(500, f"captura de ativações falhou: {exc}") from exc
+        raise HTTPException(500, f"activation capture failed: {exc}") from exc
     return result
 
 
@@ -239,9 +239,9 @@ async def activations_inspect_request(request: Request, request_id: str,
     """Per-dimension detail (top outliers + histogram) of one activation cell."""
     engine, prompt = _resolve_trace_engine(request.app.state, request_id)
     if not engine.supports_activations():
-        raise HTTPException(422, "arquitetura do modelo não suportada para captura de ativações")
+        raise HTTPException(422, "model architecture does not support activation capture")
     if body.module not in ("attn", "mlp", "resid"):
-        raise HTTPException(422, "module deve ser um de: attn, mlp, resid")
+        raise HTTPException(422, "module must be one of: attn, mlp, resid")
     try:
         result = await asyncio.to_thread(
             engine.inspect_activation, prompt, body.layer_index, body.module,
@@ -249,19 +249,19 @@ async def activations_inspect_request(request: Request, request_id: str,
     except (IndexError, ValueError) as exc:
         raise HTTPException(422, str(exc)) from exc
     except Exception as exc:
-        raise HTTPException(500, f"inspeção de ativação falhou: {exc}") from exc
+        raise HTTPException(500, f"activation inspection failed: {exc}") from exc
     return result
 
 
 @router.post("/requests/{request_id}/evaluations")
 async def add_human_evaluation(request: Request, request_id: str, body: HumanEvaluation):
-    """Rótulos epistêmicos aplicados por humano no Lab (source='human')."""
+    """Epistemic labels applied by a human in the Lab (source='human')."""
     conn = request.app.state.conn
     if conn.execute("SELECT 1 FROM requests WHERE id = ?", (request_id,)).fetchone() is None:
-        raise HTTPException(404, "request não encontrada")
+        raise HTTPException(404, "request not found")
     invalid = [label for label in body.labels if label not in HUMAN_LABELS]
     if invalid:
-        raise HTTPException(422, f"rótulos inválidos: {invalid}; válidos: {HUMAN_LABELS}")
+        raise HTTPException(422, f"invalid labels: {invalid}; valid labels: {HUMAN_LABELS}")
     created_at = datetime.now(timezone.utc).isoformat()
     items = [("label", {"label": label, "note": body.note}) for label in body.labels]
     request.app.state.writer.enqueue(
@@ -306,10 +306,10 @@ async def compare(request: Request, pair_id: str):
 
 @router.get("/params/impact")
 async def params_impact(request: Request, param: str, model: str | None = None):
-    """Agrupa requisições pelo valor INFERIDO do parâmetro e compara métricas.
+    """Group requests by the INFERRED parameter value and compare metrics.
 
-    O agrupamento usa a camada inferida (com origem explícita) — o resultado
-    indica para cada grupo se o valor veio de request/modelfile/default.
+    Grouping uses the inferred layer (with explicit provenance) — the result
+    indicates whether each group's value came from request/modelfile/default.
     """
     conn = request.app.state.conn
     where, args = ("AND model = ?", [model]) if model else ("", [])
@@ -331,7 +331,7 @@ async def params_impact(request: Request, param: str, model: str | None = None):
                            ("ttft_ms", "time_to_first_token_ms")]:
             if row[col] is not None:
                 g[field].append(row[col])
-    return {"param": param, "note": "valores da camada INFERIDA (não confirmada pelo servidor)",
+    return {"param": param, "note": "INFERRED layer values (not confirmed by the server)",
             "groups": [{"value": g["value"], "sources": sorted(g["sources"]), "n": g["n"],
                         "avg_tokens_per_second": _avg(g["tps"]),
                         "avg_eval_count": _avg(g["eval_count"]),

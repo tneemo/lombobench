@@ -1,7 +1,7 @@
-/* Camada de gráficos do LomboLab — wrapper fino sobre Apache ECharts.
-   Tema "lombo" lido dos tokens CSS (dark/âmbar); fábricas padronizadas por
-   tipo de gráfico. Views chamam LomboCharts.<tipo>(el, dados, opts) e
-   recebem a instância ECharts já montada — nunca falam com echarts direto. */
+/* LomboLab chart layer — thin wrapper over Apache ECharts.
+   The "lombo" theme reads CSS tokens (dark/amber); standardized factories by
+   chart type. Views call LomboCharts.<type>(el, data, opts) and
+   receive a mounted ECharts instance — they never call echarts directly. */
 'use strict';
 
 window.LomboCharts = (() => {
@@ -98,7 +98,7 @@ window.LomboCharts = (() => {
       base.toolbox = {
         right: 6, top: 0, itemSize: 12, iconStyle: { borderColor: t.muted },
         emphasis: { iconStyle: { borderColor: t.accent } },
-        feature: { saveAsImage: { title: 'exportar PNG', backgroundColor: t.bg, pixelRatio: 2 } },
+        feature: { saveAsImage: { title: 'export PNG', backgroundColor: t.bg, pixelRatio: 2 } },
       };
     }
     return base;
@@ -265,7 +265,7 @@ window.LomboCharts = (() => {
   function boxplot(el, { categories, data, outliers }, opts = {}) {
     const t = ensureTheme();
     const series = [{
-      name: opts.name || 'distribuição', type: 'boxplot', data,
+      name: opts.name || 'distribution', type: 'boxplot', data,
       itemStyle: { color: t.surface2, borderColor: t.accent, borderWidth: 1.4 },
     }];
     if (outliers?.length) {
@@ -297,7 +297,7 @@ window.LomboCharts = (() => {
         return dist ? `${categories[params.dataIndex]}<br/>n = ${dist.counts.reduce((a, b) => a + b, 0)}` : '';
       } },
       series: [{
-        type: 'custom', name: opts.name || 'distribuição',
+        type: 'custom', name: opts.name || 'distribution',
         renderItem: (params, api) => {
           const dist = distributions[params.dataIndex];
           if (!dist || !dist.counts?.length) return null;

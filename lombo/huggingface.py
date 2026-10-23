@@ -1,8 +1,8 @@
-"""Integração read-only com as APIs oficiais do Hugging Face Hub.
+"""Read-only integration with the official Hugging Face Hub APIs.
 
-Este módulo é a única camada que conhece os endpoints externos. A separação
-mantém a UI independente do Hub e deixa um ponto único para adicionar token,
-cache, downloads e execução em etapas futuras.
+This module is the only layer that knows the external endpoints. This separation
+keeps the UI independent of the Hub and provides a single place to add tokens,
+caching, downloads and execution in future stages.
 """
 
 from __future__ import annotations
@@ -22,7 +22,7 @@ router = APIRouter()
 
 
 class HuggingFaceHubService:
-    """Cliente pequeno e assíncrono para a API pública oficial do Hub."""
+    """Small asynchronous client for the official public Hub API."""
 
     def __init__(self, client: httpx.AsyncClient):
         self.client = client
@@ -123,7 +123,7 @@ class HuggingFaceHubService:
             status = 404 if exc.response.status_code == 404 else 502
             raise HTTPException(status, _hub_error(exc.response)) from exc
         except (httpx.HTTPError, ValueError) as exc:
-            raise HTTPException(502, f"Hugging Face Hub indisponível: {exc}") from exc
+            raise HTTPException(502, f"Hugging Face Hub unavailable: {exc}") from exc
 
     async def _json_optional(self, url: str, params: dict | None = None) -> Any | None:
         try:
@@ -194,7 +194,7 @@ def _clean_params(params: dict) -> dict:
 
 
 def _next_cursor(link_header: str | None) -> str | None:
-    """Extrai apenas o cursor do link rel=next fornecido pelo Hub."""
+    """Extract only the cursor from the rel=next link provided by the Hub."""
     if not link_header:
         return None
     for part in link_header.split(","):
@@ -209,7 +209,7 @@ def _next_cursor(link_header: str | None) -> str | None:
 def _repo_path(repo_id: str) -> str:
     parts = repo_id.strip("/").split("/")
     if not repo_id or len(parts) > 2 or any(not part or part in {".", ".."} for part in parts):
-        raise HTTPException(400, "identificador de repositório inválido")
+        raise HTTPException(400, "invalid repository identifier")
     return "/".join(quote(part, safe="@._-") for part in parts)
 
 
@@ -322,7 +322,7 @@ def _dataset_size(dataset_info: dict) -> int | None:
 
 
 def _card_dataset_info(value: Any) -> dict:
-    """Converte dataset_info do YAML do card para o formato do Viewer."""
+    """Convert dataset_info from the card YAML to the Viewer format."""
     entries = value if isinstance(value, list) else [value] if isinstance(value, dict) else []
     return {str(entry.get("config_name") or "default"): entry for entry in entries}
 
@@ -339,6 +339,6 @@ def _dataset_description(metadata: dict, card: str | None) -> str | None:
 def _hub_error(response: httpx.Response) -> str:
     try:
         data = response.json()
-        return data.get("error") or data.get("message") or f"Hub retornou HTTP {response.status_code}"
+        return data.get("error") or data.get("message") or f"Hub returned HTTP {response.status_code}"
     except ValueError:
-        return f"Hub retornou HTTP {response.status_code}"
+        return f"Hub returned HTTP {response.status_code}"

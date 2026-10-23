@@ -1,7 +1,7 @@
-"""Snapshot do ambiente de execução.
+"""Runtime environment snapshot.
 
-Registrado uma vez por combinação (fingerprint) — novo snapshot quando algo
-muda, ex.: versão do Ollama. Cada request referencia o environment vigente.
+Recorded once per combination (fingerprint) — a new snapshot when something
+changes, e.g. the Ollama version. Each request references the current environment.
 """
 
 from __future__ import annotations

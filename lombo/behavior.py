@@ -1,8 +1,8 @@
-"""Avaliações comportamentais heurísticas (source='heuristic').
+"""Heuristic behavioral evaluations (source='heuristic').
 
-Medem formato, repetição e desempenho da resposta observável. NÃO avaliam a
-tese principal (comportamento epistêmico) — isso é papel dos rótulos humanos
-aplicados no Lab (source='human').
+Measure format, repetition and performance of the observable response. They do NOT
+assess the main thesis (epistemic behavior) — that is the role of human labels
+applied in the Lab (source='human').
 """
 
 from __future__ import annotations
@@ -11,7 +11,7 @@ import json
 import re
 from typing import Any
 
-# Rótulos epistêmicos válidos para avaliação humana no Lab.
+# Valid epistemic labels for human evaluation in the Lab (stored identifiers).
 HUMAN_LABELS = [
     "correto",
     "alucinou",
@@ -26,9 +26,9 @@ _WORD_RE = re.compile(r"\w+", re.UNICODE)
 
 
 def evaluate(record: dict[str, Any], request_body: dict[str, Any] | None) -> list[tuple[str, Any]]:
-    """Computa as métricas heurísticas de um registro concluído.
+    """Compute heuristic metrics for a completed record.
 
-    Retorna pares (metric, value) para a tabela `evaluations`.
+    Return (metric, value) pairs for the `evaluations` table.
     """
     items: list[tuple[str, Any]] = []
     text = record.get("response_text") or ""

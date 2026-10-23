@@ -1,12 +1,12 @@
-"""LomboProxy — proxy transparente para o Ollama com captura em SQLite.
+"""LomboProxy — transparent proxy for Ollama with SQLite capture.
 
-Streaming transparente com baixo overhead mensurável: os chunks fluem ao
-cliente à medida que chegam do Ollama e são acumulados em paralelo para o
-registro. O overhead real é medido pelo script de verificação (direto ×
-intermediado) — nunca alegado como zero.
+Transparent streaming with low, measurable overhead: chunks flow to the client
+as they arrive from Ollama and are accumulated in parallel for logging.
+Actual overhead is measured by the verification script (direct × proxied)
+— never claimed to be zero.
 
-Privacidade: o servidor escuta 127.0.0.1 por padrão; `X-Lombo-No-Log` faz a
-requisição passar sem registro; `--no-capture` desliga a captura global.
+Privacy: the server listens on 127.0.0.1 by default; `X-Lombo-No-Log` bypasses
+logging for a request; `--no-capture` disables capture globally.
 """
 
 from __future__ import annotations
@@ -34,13 +34,13 @@ log = logging.getLogger("lombo.proxy")
 
 STATIC_DIR = Path(__file__).parent / "static"
 
-# Headers que não devem ser repassados tal-e-qual (hop-by-hop / recalculados).
+# Headers that must not be forwarded unchanged (hop-by-hop / recalculated).
 _SKIP_REQUEST_HEADERS = {"host", "content-length", "connection", "keep-alive",
                          "transfer-encoding", "upgrade", "proxy-connection"}
 _SKIP_RESPONSE_HEADERS = {"content-length", "connection", "keep-alive",
                           "transfer-encoding", "content-encoding"}
 
-# Metadados experimentais aceitos via header (removidos antes do repasse).
+# Experimental metadata accepted via headers (removed before forwarding).
 _LOMBO_HEADERS = {
     "x-lombo-experiment": "experiment",
     "x-lombo-condition": "condition",
@@ -103,8 +103,8 @@ def create_app(config: LomboConfig) -> FastAPI:
         return {"ok": True, "capture": config.capture,
                 "ollama_url": config.ollama_url,
                 "ollama_version": app.state.ollama_version,
-                "notice": "As conversas interceptadas são gravadas localmente e "
-                          "podem conter dados sensíveis."}
+                "notice": "Intercepted conversations are recorded locally and "
+                          "may contain sensitive data."}
 
     from .analysis import router as analysis_router
     from .huggingface import router as huggingface_router
@@ -143,8 +143,8 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
             meta["engine"] = value.lower()
             continue
         if lname in _LOMBO_HEADERS:
-            # texto livre (ex.: condition) chega percent-encoded — headers só
-            # aceitam ISO-8859-1; unquote() é no-op em valores já ASCII simples.
+            # free text (e.g. condition) arrives percent-encoded — headers only
+            # accept ISO-8859-1; unquote() is a no-op on plain ASCII values.
             meta[_LOMBO_HEADERS[lname]] = unquote(value)
             continue
         if lname in _SKIP_REQUEST_HEADERS or lname.startswith("x-lombo-"):
@@ -165,14 +165,14 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
         upstream = await _transformers_upstream(app, endpoint, body)
     else:
         if engine_name != "ollama":
-            return JSONResponse({"error": f"engine desconhecido: {engine_name}"},
+            return JSONResponse({"error": f"unknown engine: {engine_name}"},
                                 status_code=400)
         upstream_req = client.build_request(request.method, endpoint,
                                             headers=fwd_headers, content=body)
         try:
             upstream = await client.send(upstream_req, stream=True)
         except httpx.HTTPError as exc:
-            error = f"ollama inacessível: {exc}"
+            error = f"Ollama unreachable: {exc}"
             if should_capture:
                 _finalize_error(app, endpoint, body, meta, started_at, error)
             return JSONResponse({"error": error}, status_code=502)
@@ -213,7 +213,7 @@ async def _forward(app: FastAPI, config: LomboConfig, request: Request, endpoint
             error = "client_disconnected"
             raise
         except httpx.HTTPError as exc:
-            error = f"stream interrompido: {exc}"
+            error = f"stream interrupted: {exc}"
         finally:
             await upstream.aclose()
             completed_at = _now_iso()
@@ -249,9 +249,9 @@ def _finalize_error(app, endpoint, body, meta, started_at, error):
 async def _finalize(app, endpoint, body, req_body, req_info, meta, acc,
                     started_at, started_perf, timing, completed_at,
                     status_code, error):
-    """Monta o registro completo e o enfileira para o escritor único.
+    """Build the complete record and enqueue it for the single writer.
 
-    Falha aqui vira warning — jamais afeta a resposta já entregue ao cliente.
+    Failures here become warnings — they never affect the response already sent to the client.
     """
     try:
         result = acc.result()
@@ -325,11 +325,11 @@ async def _finalize(app, endpoint, body, req_body, req_info, meta, acc,
 
         app.state.writer.enqueue(write)
     except Exception:
-        log.warning("falha ao montar registro de %s (descartado)", endpoint, exc_info=True)
+        log.warning("failed to build record for %s (discarded)", endpoint, exc_info=True)
 
 
 async def _ensure_baseline(app, model: str) -> dict:
-    """Garante snapshot do baseline do modelo; retorna os params do Modelfile parseados."""
+    """Ensure a model baseline snapshot; return parsed Modelfile parameters."""
     cache = app.state.baseline_cache
     if model in cache:
         return cache[model]
@@ -357,7 +357,7 @@ async def _ensure_baseline(app, model: str) -> dict:
         elif row is not None:
             modelfile_params = json.loads(row["parameters_parsed_json"] or "{}")
     except Exception:
-        log.warning("não foi possível obter baseline de %s", model, exc_info=True)
+        log.warning("could not retrieve baseline for %s", model, exc_info=True)
     cache[model] = modelfile_params
     return modelfile_params
 
@@ -374,14 +374,14 @@ async def _model_digest(client: httpx.AsyncClient, model: str) -> str | None:
 
 
 async def _observed_runtime(app) -> dict | None:
-    """Estado observado do runtime (/api/ps). NÃO é confirmação de parâmetro
-    desta requisição: o modelo carregado pode ser compartilhado ou ter mudado."""
+    """Observed runtime state (/api/ps). This does NOT confirm parameters for
+    this request: the loaded model may be shared or may have changed."""
     try:
         client: httpx.AsyncClient = app.state.client
         resp = await client.get("/api/ps", timeout=5)
         if resp.status_code == 200:
             return {"api_ps": resp.json(), "observed_at": _now_iso(),
-                    "note": "estado do runtime; não confirma parâmetros da requisição"}
+                    "note": "runtime state; does not confirm request parameters"}
     except Exception:
         pass
     return None
@@ -394,20 +394,20 @@ async def _transformers_upstream(app, endpoint: str, body: bytes) -> httpx.Respo
         payload = json.loads(body)
         model_name = payload.get("model")
         if not model_name:
-            raise ValueError("o campo model é obrigatório para Transformers")
+            raise ValueError("the model field is required for Transformers")
         async with app.state.transformer_engine_lock:
             engine = app.state.transformer_engines.get(model_name)
             if engine is None:
                 from .engines import TransformersEngine
                 app.state.transformer_engine_status[model_name] = {
                     "state": "loading",
-                    "message": "baixando/carregando modelo Hugging Face",
+                    "message": "downloading/loading Hugging Face model",
                 }
                 try:
                     engine = await asyncio.to_thread(TransformersEngine, model_name)
                     app.state.transformer_engines[model_name] = engine
                     app.state.transformer_engine_status[model_name] = {
-                        "state": "ready", "message": "modelo pronto",
+                        "state": "ready", "message": "model ready",
                     }
                 except Exception as exc:
                     app.state.transformer_engine_status[model_name] = {

@@ -1,4 +1,4 @@
-/* ================= Ativações: captura real via engine Transformers
+/* ================= Activations: real capture via the Transformers engine
    (POST /requests/{id}/activations + .../activations/inspect) ================= */
 'use strict';
 
@@ -14,10 +14,10 @@ window.loadActivationRequests = async function loadActivationRequests() {
     const data = await (await fetch(`${API}/requests?limit=200`)).json();
     const reqs = data.requests || [];
     sel.innerHTML = reqs.length
-      ? reqs.map(r => `<option value="${esc(r.id)}">${esc((r.started_at || '').slice(5, 16).replace('T', ' '))} · ${esc(r.model || '?')} · ${esc(r.condition || 'base')}</option>`).join('')
-      : '<option value="">nenhuma execução ainda</option>';
+      ? reqs.map(r => `<option value="${esc(r.id)}">${esc((r.started_at || '').slice(5, 16).replace('T', ' '))} · ${esc(r.model || '?')} · ${esc(conditionText(r.condition || 'base'))}</option>`).join('')
+      : '<option value="">no runs yet</option>';
     sel.dataset.populated = '1';
-  } catch { sel.innerHTML = '<option value="">indisponível</option>'; }
+  } catch { sel.innerHTML = '<option value="">unavailable</option>'; }
 };
 
 $('#act-capture').onclick = () => captureActivations();
@@ -31,8 +31,8 @@ $('#act-add-compare').onclick = () => {
   if (!activationsState.lastInspect) return;
   activationsState.compareRef = activationsState.lastInspect;
   const btn = $('#act-add-compare');
-  btn.textContent = 'Referência definida ✓';
-  setTimeout(() => { btn.textContent = 'Adicionar ao comparador'; }, 1500);
+  btn.textContent = 'Reference set ✓';
+  setTimeout(() => { btn.textContent = 'Add to comparator'; }, 1500);
 };
 
 function setMatrixEmpty(message) {
@@ -47,12 +47,12 @@ function setMatrixEmpty(message) {
 
 async function captureActivations() {
   const requestId = $('#act-request').value;
-  if (!requestId) { alert('Selecione uma execução.'); return; }
+  if (!requestId) { alert('Select a run.'); return; }
   activationsState.requestId = requestId;
   const position = Number($('#act-position').value || -1);
   const btn = $('#act-capture');
   btn.disabled = true;
-  btn.textContent = 'Capturando…';
+  btn.textContent = 'Capturing…';
   try {
     const resp = await fetch(`${API}/requests/${requestId}/activations`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -66,13 +66,13 @@ async function captureActivations() {
     populatePositionSelect(data.tokens, position);
     renderActivationMatrix();
     $('#act-matrix-caption').textContent =
-      `${data.model?.model || ''} · posição ${data.position} · ${data.num_layers} camadas · ${data.modules.join(', ')}`;
+      `${data.model?.model || ''} · position ${data.position} · ${data.num_layers} layers · ${data.modules.join(', ')}`;
   } catch (err) {
     activationsState.matrix = null;
-    setMatrixEmpty(`Erro: ${err.message}`);
+    setMatrixEmpty(`Error: ${err.message}`);
   } finally {
     btn.disabled = false;
-    btn.textContent = 'Capturar';
+    btn.textContent = 'Capture';
   }
 }
 
@@ -80,7 +80,7 @@ function populatePositionSelect(tokens, current) {
   const sel = $('#act-position');
   if (!tokens || !tokens.length) return;
   sel.innerHTML = tokens.map((tok, i) => {
-    const idx = i - tokens.length; // convenção do backend: índice negativo relativo ao fim
+    const idx = i - tokens.length; // backend convention: negative index relative to the end
     return `<option value="${idx}">${idx} · "${esc(tok)}"</option>`;
   }).join('');
   sel.value = String(current);
@@ -102,7 +102,7 @@ function renderActivationMatrix() {
   yEl.style.gridTemplateRows = `repeat(${modules.length}, 1fr)`;
   yEl.innerHTML = modules.map(m => `<span>${esc(ACT_MODULE_LABELS[m] || m)}</span>`).join('');
 
-  // cada módulo tem sua própria escala de cor (normalização por linha, não global)
+  // each module has its own color scale (per-row normalization, not global)
   const byModule = {};
   for (const m of modules) {
     const values = data.layers.map(l => l[m]?.[metric] ?? 0);
@@ -150,7 +150,7 @@ async function inspectActivationCell(layerIndex, module, cellEl) {
     if (!resp.ok) throw new Error(data.detail || JSON.stringify(data));
     renderActivationInspector(data);
   } catch (err) {
-    $('#act-inspector-metrics').innerHTML = `<p class="notice-inline" style="color:var(--err)">Erro: ${esc(err.message)}</p>`;
+    $('#act-inspector-metrics').innerHTML = `<p class="notice-inline" style="color:var(--err)">Error: ${esc(err.message)}</p>`;
   }
 }
 
@@ -164,7 +164,7 @@ function renderActivationInspector(data) {
     return `<em class="${pct >= 0 ? 'positive' : 'negative'}">${pct >= 0 ? '+' : ''}${pct.toFixed(1)}%</em>`;
   };
   $('#act-inspector-metrics').innerHTML = `
-    <span><small>NORMA L2</small><b>${stats.l2.toFixed(3)}</b>${deltaFor('l2')}</span>
+    <span><small>L2 NORM</small><b>${stats.l2.toFixed(3)}</b>${deltaFor('l2')}</span>
     <span><small>MEAN</small><b>${stats.mean.toFixed(4)}</b>${deltaFor('mean')}</span>
     <span><small>SPARSITY</small><b>${(stats.sparsity * 100).toFixed(1)}%</b>${deltaFor('sparsity')}</span>
     <span><small>MAX</small><b>${stats.max.toFixed(3)}</b>${deltaFor('max')}</span>`;
@@ -182,7 +182,7 @@ function renderActivationInspector(data) {
   }, { toolbox: false });
 
   $('#act-top-dims').innerHTML = `<table class="dense-table"><thead><tr>
-      <th>DIM</th><th>VALOR</th><th>Z-SCORE</th><th>PERCENTIL</th></tr></thead><tbody>
+      <th>DIM</th><th>VALUE</th><th>Z-SCORE</th><th>PERCENTILE</th></tr></thead><tbody>
     ${data.top_dims.map(d => `<tr><td><code>#${d.dim}</code></td><td>${d.value.toFixed(4)}</td>
       <td class="${Math.abs(d.zscore) >= 3 ? 'warn' : ''}">${d.zscore >= 0 ? '+' : ''}${d.zscore.toFixed(2)}σ</td>
       <td class="num">${d.percentile.toFixed(2)}</td></tr>`).join('')}

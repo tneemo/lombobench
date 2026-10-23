@@ -1,8 +1,8 @@
-"""Contrato dos endpoints de agregação (/_lombo/api/metrics|models|environments|...).
+"""Aggregation endpoint contracts (/_lombo/api/metrics|models|environments|...).
 
-Semeia um SQLite em memória com os helpers reais de db.py (mesmos caminhos de
-escrita usados em produção) e chama as funções do router diretamente, no
-estilo de test_diagnostics_endpoint.py.
+Seed an in-memory SQLite database with the real db.py helpers (the same write
+paths used in production) and call router functions directly, following
+the style of test_diagnostics_endpoint.py.
 """
 
 import asyncio
@@ -162,7 +162,7 @@ def test_models_catalog_merges_baseline_and_aggregates(conn):
     assert by_model["llama3:8b"]["quantization_level"] == "Q4_K_M"
     assert by_model["llama3:8b"]["n_runs"] == 2
     assert by_model["llama3:8b"]["avg_tps"] == 40.0
-    # modelo sem baseline ainda aparece com campos vazios, não é descartado
+    # a model without a baseline still appears with empty fields; it is not discarded
     assert by_model["untracked/model"]["family"] is None
     assert by_model["untracked/model"]["n_runs"] == 1
 
@@ -265,11 +265,11 @@ def test_runtime_vram_parses_api_ps_and_dedupes(conn):
         "observed_at": "2026-07-10T10:00:00+00:00",
     })
     _insert_request(conn, id="a", observed_runtime_json=payload)
-    _insert_request(conn, id="b", observed_runtime_json=payload)  # mesmo observed_at
+    _insert_request(conn, id="b", observed_runtime_json=payload)  # same observed_at
 
     result = asyncio.run(runtime_vram(_request(conn), limit=200))
 
-    assert len(result["points"]) == 1  # dedupe por observed_at
+    assert len(result["points"]) == 1  # deduplicate by observed_at
     assert result["points"][0]["models"][0]["name"] == "llama3:8b"
     assert result["points"][0]["models"][0]["size_vram"] == 5_000_000_000
 
@@ -278,7 +278,7 @@ def test_runtime_vram_tolerates_malformed_json(conn):
     _insert_request(conn, id="a", observed_runtime_json="{not valid json")
     _insert_request(conn, id="b", observed_runtime_json=json.dumps({"api_ps": "unexpected-string"}))
     result = asyncio.run(runtime_vram(_request(conn), limit=200))
-    # malformado é ignorado; o segundo produz um ponto sem modelos (api_ps não é dict)
+    # malformed data is ignored; the second yields a point without models (api_ps is not a dict)
     assert len(result["points"]) == 1
     assert result["points"][0]["models"] == []
 

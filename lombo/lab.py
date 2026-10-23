@@ -1,15 +1,15 @@
-"""Endpoints do Lab: sessões de experimentação com painéis lado a lado.
+"""Lab endpoints: experimentation sessions with side-by-side panes.
 
-O Lab NÃO tem caminho próprio de captura: o front chama o próprio proxy
-(POST /api/chat) com os headers X-Lombo-* preenchidos, e tudo cai nas mesmas
-tabelas de qualquer cliente externo.
+The Lab has NO separate capture path: the frontend calls the proxy itself
+(POST /api/chat) with X-Lombo-* headers filled in, and everything goes into
+the same tables used by any external client.
 
-Modos de sessão:
-- controlled (padrão): a cada rodada todos os painéis recebem o MESMO
-  histórico-base e só a variável do painel difere — rodadas independentes e
-  comparáveis (uma variável por vez).
-- branched: após a primeira resposta cada painel segue seu próprio histórico
-  (branch_id/parent_request_id registram a árvore).
+Session modes:
+- controlled (default): in each round all panes receive the SAME base history
+  and only the pane variable differs — independent, comparable rounds
+  (one variable at a time).
+- branched: after the first response each pane follows its own history
+  (branch_id/parent_request_id record the tree).
 """
 
 from __future__ import annotations
@@ -25,6 +25,7 @@ router = APIRouter()
 
 
 class LabSession(BaseModel):
+    # Preserve the stored default; the Lab translates its display text.
     title: str = "Sessão sem título"
     mode: str = Field(default="controlled", pattern="^(controlled|branched)$")
     base_config: dict = Field(default_factory=dict)
@@ -66,7 +67,7 @@ async def get_session(request: Request, session_id: str):
     conn = request.app.state.conn
     row = conn.execute("SELECT * FROM lab_sessions WHERE id = ?", (session_id,)).fetchone()
     if row is None:
-        raise HTTPException(404, "sessão não encontrada")
+        raise HTTPException(404, "session not found")
     result = _session_dict(row)
     reqs = conn.execute(
         "SELECT id, started_at, completed_at, turn_id, branch_id, parent_request_id, "
@@ -90,7 +91,7 @@ async def update_session(request: Request, session_id: str, body: SessionUpdate)
     conn = request.app.state.conn
     row = conn.execute("SELECT * FROM lab_sessions WHERE id = ?", (session_id,)).fetchone()
     if row is None:
-        raise HTTPException(404, "sessão não encontrada")
+        raise HTTPException(404, "session not found")
     sets, args = [], []
     for column, value in [("title", body.title), ("mode", body.mode)]:
         if value is not None:
@@ -114,11 +115,11 @@ async def update_session(request: Request, session_id: str, body: SessionUpdate)
 
 @router.get("/lab/sessions/{session_id}/tree")
 async def session_tree(request: Request, session_id: str):
-    """Árvore de branches de uma sessão (branch_id/parent_request_id/turn_id)
-    para reconstrução no front — o backend só devolve os nós ordenados."""
+    """Session branch tree (branch_id/parent_request_id/turn_id)
+    for frontend reconstruction — the backend only returns ordered nodes."""
     conn = request.app.state.conn
     if conn.execute("SELECT 1 FROM lab_sessions WHERE id = ?", (session_id,)).fetchone() is None:
-        raise HTTPException(404, "sessão não encontrada")
+        raise HTTPException(404, "session not found")
     rows = conn.execute(
         "SELECT id, parent_request_id, branch_id, turn_id, condition, model, "
         "started_at, eval_count, tokens_per_second, error "
@@ -128,7 +129,7 @@ async def session_tree(request: Request, session_id: str):
 
 @router.get("/lab/models")
 async def list_models(request: Request):
-    """Modelos disponíveis no Ollama (para o seletor de painel)."""
+    """Models available in Ollama (for the pane selector)."""
     resp = await request.app.state.client.get("/api/tags", timeout=10)
     return resp.json()
 
@@ -138,7 +139,7 @@ async def engine_status(request: Request, model: str):
     """Current on-demand loading state for a Hugging Face model."""
     status = request.app.state.transformer_engine_status.get(model)
     if status is None:
-        status = {"state": "idle", "message": "modelo ainda não carregado"}
+        status = {"state": "idle", "message": "model not loaded yet"}
     return {"engine": "transformers", "model": model, **status}
 
 

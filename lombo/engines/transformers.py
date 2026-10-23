@@ -458,7 +458,7 @@ class TransformersEngine(Engine):
         top-k/z-score/histogram computation.
         """
         if module not in ("attn", "mlp", "resid"):
-            raise ValueError(f"module deve ser um de: attn, mlp, resid (recebido: {module!r})")
+            raise ValueError(f"module must be one of: attn, mlp, resid (received: {module!r})")
         if not self.supports_activations():
             raise RuntimeError(
                 "this model architecture is not supported for activation capture")
@@ -477,7 +477,7 @@ class TransformersEngine(Engine):
         else:
             target_module = layer
         if target_module is None:
-            raise ValueError(f"módulo '{module}' não encontrado nesta arquitetura")
+            raise ValueError(f"module '{module}' not found in this architecture")
 
         text = self._format_prompt(prompt)
         encoded = self.tokenizer(text, return_tensors="pt")
@@ -499,7 +499,7 @@ class TransformersEngine(Engine):
         finally:
             handle.remove()
         if not captured:
-            raise ValueError(f"módulo '{module}' não produziu ativação nesta execução")
+            raise ValueError(f"module '{module}' produced no activation in this run")
 
         with torch.inference_mode():
             vec = captured[0][0, position].detach().float()

@@ -1,4 +1,4 @@
-/* ================= análise (view "Execuções") ================= */
+/* ================= analysis ("Runs" view) ================= */
 'use strict';
 
 async function loadRequests() {
@@ -33,7 +33,7 @@ async function fetchLatencyLookup(model, experiment) {
 }
 
 function durationBarCell(point) {
-  if (!point) return '<div class="dur-bar empty" title="sem breakdown (execução com erro ou fora do engine Ollama)"></div>';
+  if (!point) return '<div class="dur-bar empty" title="no breakdown (failed run or non-Ollama engine)"></div>';
   const total = (point.load_ms || 0) + (point.prompt_eval_ms || 0) + (point.eval_ms || 0);
   if (!total) return '<div class="dur-bar empty"></div>';
   const pct = ms => `${((ms || 0) / total * 100).toFixed(1)}%`;
@@ -54,13 +54,13 @@ function renderRequestRows(rows, latencyById) {
       <td>${(r.started_at || '').slice(5, 19).replace('T', ' ')}</td>
       <td>${esc(r.model || '?')}</td>
       <td><span class="pill ${r.origin === 'lab' ? 'lab' : ''}">${r.origin}</span></td>
-      <td>${esc(r.condition || '—')}</td>
+      <td>${esc(conditionText(r.condition || '—'))}</td>
       <td class="diffkeys">${esc(diffKeys || '—')}</td>
       <td class="num">${r.eval_count ?? ''}</td>
       <td class="num">${r.tokens_per_second ? r.tokens_per_second.toFixed(1) : ''}</td>
       <td class="num">${r.time_to_first_token_ms ? r.time_to_first_token_ms.toFixed(0) : ''}</td>
       <td>${durationBarCell(latencyById.get(r.id))}</td>
-      <td>${r.error ? `<span class="pill err">erro</span>` : `<span class="pill">${r.status_code ?? ''}</span>`}</td>`;
+      <td>${r.error ? `<span class="pill err">error</span>` : `<span class="pill">${r.status_code ?? ''}</span>`}</td>`;
     tr.onclick = () => openDrawer(r.id);
     tbody.appendChild(tr);
   }
@@ -71,21 +71,21 @@ function renderAnalysisCharts(rows, latencyById) {
   const tpsValues = rows.map(r => r.tokens_per_second).filter(v => v != null);
   if (tpsValues.length >= 2) {
     const { edges, counts } = histogramOf(tpsValues, Math.min(16, Math.max(4, Math.round(Math.sqrt(tpsValues.length)))));
-    LomboCharts.histogram(histEl, { edges, counts, name: 'execuções' }, { toolbox: false });
+    LomboCharts.histogram(histEl, { edges, counts, name: 'runs' }, { toolbox: false });
   } else {
-    LomboCharts.dispose(histEl); histEl.innerHTML = emptyPanel('Sem tok/s suficientes no filtro atual.');
+    LomboCharts.dispose(histEl); histEl.innerHTML = emptyPanel('Not enough tok/s data in the current filter.');
   }
 
-  // prompt_eval_count só vem no detalhe/latência (não na listagem de /requests);
-  // reaproveita o lookup já buscado para a coluna de duração.
+  // prompt_eval_count only comes from details/latency (not the /requests listing);
+  // reuse the lookup already fetched for the duration column.
   const scatterPoints = rows.map(r => latencyById.get(r.id))
     .filter(p => p && p.ttft_ms != null && p.prompt_eval_count != null)
     .map(p => [p.prompt_eval_count, p.ttft_ms]);
   if (scatterPoints.length >= 2) {
-    LomboCharts.scatter(scatterEl, { series: [{ name: 'execuções', data: scatterPoints }] },
-      { xName: 'tokens de prompt', yName: 'TTFT ms', toolbox: false });
+    LomboCharts.scatter(scatterEl, { series: [{ name: 'runs', data: scatterPoints }] },
+      { xName: 'prompt tokens', yName: 'TTFT ms', toolbox: false });
   } else {
-    LomboCharts.dispose(scatterEl); scatterEl.innerHTML = emptyPanel('Sem pares TTFT/tokens no filtro atual.');
+    LomboCharts.dispose(scatterEl); scatterEl.innerHTML = emptyPanel('No TTFT/token pairs in the current filter.');
   }
 
   const byHour = new Map();
@@ -97,9 +97,9 @@ function renderAnalysisCharts(rows, latencyById) {
   const hours = [...byHour.keys()].sort();
   if (hours.length >= 2) {
     LomboCharts.bars(volEl, { categories: hours.map(h => h.replace('T', ' ') + 'h'),
-      series: [{ name: 'execuções', data: hours.map(h => byHour.get(h)) }] }, { toolbox: false });
+      series: [{ name: 'runs', data: hours.map(h => byHour.get(h)) }] }, { toolbox: false });
   } else {
-    LomboCharts.dispose(volEl); volEl.innerHTML = emptyPanel('Volume por hora aparece com mais execuções no filtro.');
+    LomboCharts.dispose(volEl); volEl.innerHTML = emptyPanel('Hourly volume appears with more runs in the filter.');
   }
 }
 
@@ -120,5 +120,5 @@ $('#btn-toggle-charts').onclick = () => {
   const btn = $('#btn-toggle-charts');
   strip.hidden = !strip.hidden;
   btn.setAttribute('aria-expanded', String(!strip.hidden));
-  btn.textContent = strip.hidden ? 'Mostrar gráficos' : 'Ocultar gráficos';
+  btn.textContent = strip.hidden ? 'Show charts' : 'Hide charts';
 };

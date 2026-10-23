@@ -1,11 +1,11 @@
-"""Parsing das requisições e acumulação dos streams de resposta do Ollama.
+"""Parse requests and accumulate Ollama response streams.
 
-Suporta:
-- /api/generate e /api/chat (NDJSON quando stream, JSON único quando não);
-- /v1/chat/completions (SSE `data: ...` quando stream, JSON quando não).
+Supports:
+- /api/generate and /api/chat (NDJSON when streaming, single JSON otherwise);
+- /v1/chat/completions (SSE `data: ...` when streaming, JSON otherwise).
 
-`message.thinking` / `thinking` (modelos de raciocínio) é acumulado em campo
-separado da resposta — nunca concatenado.
+`message.thinking` / `thinking` (reasoning models) is accumulated in a separate
+field from the response — never concatenated.
 """
 
 from __future__ import annotations
@@ -17,17 +17,17 @@ from .baseline import OPENAI_TO_OLLAMA
 
 CAPTURED_ENDPOINTS = {"/api/generate", "/api/chat", "/v1/chat/completions"}
 
-# Parâmetros de amostragem no topo do body do endpoint OpenAI-compat.
+# Top-level sampling parameters in the OpenAI-compatible endpoint body.
 _OPENAI_TOP_LEVEL_PARAMS = set(OPENAI_TO_OLLAMA) | {"n", "logit_bias", "top_logprobs"}
 
 
 def parse_request(endpoint: str, body: dict[str, Any]) -> dict[str, Any]:
-    """Extrai os campos normalizados da requisição (o body bruto é guardado à parte)."""
+    """Extract normalized request fields (the raw body is stored separately)."""
     info: dict[str, Any] = {
         "model": body.get("model"),
         "stream": bool(body.get("stream", endpoint != "/v1/chat/completions")),
         "requested_params": {},
-        "requested_params_ollama": {},  # nomes traduzidos p/ camada inferida
+        "requested_params_ollama": {},  # names mapped for the inferred layer
         "system_prompt": None,
         "prompt_or_messages": None,
     }
@@ -64,7 +64,7 @@ def _system_from_messages(messages: Any) -> str | None:
 
 
 class StreamAccumulator:
-    """Acumula os bytes da resposta e, ao final, extrai texto/thinking/métricas."""
+    """Accumulate response bytes and extract text/thinking/metrics at the end."""
 
     def __init__(self, endpoint: str, stream: bool) -> None:
         self.endpoint = endpoint
@@ -75,7 +75,7 @@ class StreamAccumulator:
         self._raw.extend(chunk)
 
     def result(self) -> dict[str, Any]:
-        """Retorna {response_text, thinking_text, final_chunk, metrics, done_reason, parse_error}."""
+        """Return {response_text, thinking_text, final_chunk, metrics, done_reason, parse_error}."""
         raw = bytes(self._raw)
         try:
             if self.endpoint == "/v1/chat/completions":
@@ -89,7 +89,7 @@ class StreamAccumulator:
         parsed.setdefault("parse_error", None)
         return parsed
 
-    # ---- Ollama nativo ----
+    # ---- Native Ollama ----
 
     def _parse_ndjson(self, raw: bytes) -> dict[str, Any]:
         response, thinking, final = [], [], None

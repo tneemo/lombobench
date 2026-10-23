@@ -1,4 +1,4 @@
-/* ================= visão geral (dados reais do lombo.db) ================= */
+/* ================= overview (real data from lombo.db) ================= */
 'use strict';
 
 async function loadOverview() {
@@ -14,7 +14,7 @@ async function loadOverview() {
     sessions = sesData.sessions || [];
     timeseries = tsData;
     latency = latData;
-  } catch { /* proxy fora do ar: mantém os estados vazios */ }
+  } catch { /* proxy offline: keep empty states */ }
   renderOverviewFacts(requests, sessions, timeseries);
   renderOverviewSession(sessions[0], requests);
   renderOverviewTpsChart(requests);
@@ -29,7 +29,7 @@ async function loadOverview() {
 function renderOverviewFacts(requests, sessions, timeseries) {
   const latest = sessions[0];
   const model = latest?.base_config?.model || requests[0]?.model || null;
-  $('#ov-model-name').textContent = model || 'nenhum modelo ainda';
+  $('#ov-model-name').textContent = model || 'no model yet';
   $('#ov-model-avatar').textContent = (model ? model.replace(/^.*\//, '') : '·').charAt(0).toUpperCase() || '·';
   const engineTag = $('#ov-model-engine');
   const engine = latest?.base_config?.engine;
@@ -66,7 +66,7 @@ function renderOverviewLatency(latency) {
     .sort((a, b) => b.n - a.n).slice(0, 6);
   if (!groups.length) {
     LomboCharts.dispose(wrap);
-    wrap.innerHTML = emptyPanel('Sem execuções bem-sucedidas registradas ainda.');
+    wrap.innerHTML = emptyPanel('No successful runs recorded yet.');
     return;
   }
   const categories = groups.map(g => g.model);
@@ -84,13 +84,13 @@ function renderOverviewSession(session, requests) {
   const strip = $('#ov-session-strip');
   if (!session) {
     strip.dataset.empty = 'true';
-    $('#ov-open-session').textContent = 'Criar sessão →';
+    $('#ov-open-session').textContent = 'Create session →';
     return;
   }
   strip.dataset.empty = '';
   $('#ov-session-eyebrow').textContent =
-    `SESSÃO MAIS RECENTE · ${session.mode === 'controlled' ? 'EXPERIMENTO CONTROLADO' : 'CONVERSA RAMIFICADA'}`;
-  $('#ov-session-title').textContent = session.title;
+    `LATEST SESSION · ${session.mode === 'controlled' ? 'CONTROLLED EXPERIMENT' : 'BRANCHED CONVERSATION'}`;
+  $('#ov-session-title').textContent = sessionTitleText(session.title);
   $('#ov-session-base').textContent = Object.entries(session.base_config || {})
     .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' · ') || '—';
   const sessionRuns = requests.filter(r => r.lab_session_id === session.id);
@@ -98,7 +98,7 @@ function renderOverviewSession(session, requests) {
   $('#ov-session-runs').textContent = String(sessionRuns.length);
   $('#ov-session-last').textContent = timeAgo(sessionRuns[0]?.started_at || session.created_at);
   const btn = $('#ov-open-session');
-  btn.textContent = 'Abrir estudo →';
+  btn.textContent = 'Open study →';
   btn.removeAttribute('data-open-view');
   btn.onclick = () => openSessionById(session.id);
 }
@@ -108,10 +108,10 @@ async function openSessionById(id) {
   if (full.id) { openSession(full, full.requests || []); switchView('lab'); }
 }
 
-/* Série real de tokens/s por execução (ordem cronológica), uma cor por modelo.
-   Timeline ECharts: dataZoom + crosshair + exportação de PNG substituem o
-   SVG desenhado à mão; o eixo de tempo real também deixa claro o espaçamento
-   irregular entre execuções (algo que o índice sequencial escondia). */
+/* Actual tokens/s series per run (chronological order), one color per model.
+   ECharts timeline: dataZoom + crosshair + PNG export replace the
+   hand-drawn SVG; the actual time axis also shows the irregular spacing
+   between runs (which a sequential index hid). */
 function renderOverviewTpsChart(requests) {
   const wrap = $('#ov-tps-chart');
   const legend = $('#ov-tps-legend');
@@ -119,7 +119,7 @@ function renderOverviewTpsChart(requests) {
   const points = requests.filter(r => r.tokens_per_second != null && r.started_at).reverse();
   if (points.length < 2) {
     LomboCharts.dispose(wrap);
-    wrap.innerHTML = emptyPanel('Sem medições ainda. Rode prompts no Prompt lab ou no Benchmark para registrar tokens/s reais.');
+    wrap.innerHTML = emptyPanel('No measurements yet. Run prompts in Prompt lab or Benchmark to record actual tokens/s.');
     if (legend) legend.innerHTML = '';
     finding.hidden = true;
     return;
@@ -128,8 +128,8 @@ function renderOverviewTpsChart(requests) {
   const byCount = new Map();
   for (const r of points) byCount.set(r.model, (byCount.get(r.model) || 0) + 1);
   const models = [...byCount.entries()].sort((a, b) => b[1] - a[1]).slice(0, 4).map(([m]) => m);
-  // sem `color` explícito: as fábricas de charts.js ciclam a paleta do tema
-  // ([accent, paneB, paneC, paneD, ...]) na mesma ordem usada em todo o app.
+  // without an explicit `color`: charts.js factories cycle through the theme palette
+  // ([accent, paneB, paneC, paneD, ...]) in the same order throughout the app.
   const series = models.map(model => ({
     name: model,
     data: points.filter(r => r.model === model)
@@ -139,9 +139,9 @@ function renderOverviewTpsChart(requests) {
   const best = points.reduce((a, b) => b.tokens_per_second > a.tokens_per_second ? b : a);
   finding.hidden = false;
   $('#ov-finding-title').textContent =
-    `Melhor throughput: ${best.tokens_per_second.toFixed(1)} tok/s (${best.model})`;
+    `Best throughput: ${best.tokens_per_second.toFixed(1)} tok/s (${best.model})`;
   $('#ov-finding-note').textContent =
-    `${points.length} execuções com métricas · ${byCount.size} modelo(s) distintos no período carregado.`;
+    `${points.length} runs with metrics · ${byCount.size} distinct model(s) in the loaded period.`;
 }
 
 function renderOverviewModels(requests) {
@@ -155,7 +155,7 @@ function renderOverviewModels(requests) {
     groups.set(r.model, g);
   }
   const rows = [...groups.entries()].sort((a, b) => b[1].n - a[1].n).slice(0, 6);
-  if (!rows.length) { list.innerHTML = emptyPanel('Nenhuma execução registrada.'); return; }
+  if (!rows.length) { list.innerHTML = emptyPanel('No runs recorded.'); return; }
   const max = rows[0][1].n;
   list.innerHTML = rows.map(([model, g], i) => {
     const avg = g.tps.length ? (g.tps.reduce((a, b) => a + b, 0) / g.tps.length).toFixed(1) + ' tok/s' : '—';
@@ -167,14 +167,14 @@ function renderOverviewModels(requests) {
 function renderOverviewRuns(requests) {
   const wrap = $('#ov-runs');
   const rows = requests.slice(0, 8);
-  if (!rows.length) { wrap.innerHTML = emptyPanel('Nenhuma execução registrada ainda — tudo que passa pelo proxy aparece aqui.'); return; }
+  if (!rows.length) { wrap.innerHTML = emptyPanel('No runs recorded yet — everything passing through the proxy appears here.'); return; }
   wrap.innerHTML = rows.map(r => {
     const dot = r.error ? 'run-err' : 'run-ok';
     const metric = r.tokens_per_second != null ? `${r.tokens_per_second.toFixed(1)} tok/s`
-      : r.error ? 'erro' : (r.status_code ?? '—');
+      : r.error ? 'error' : (r.status_code ?? '—');
     return `<div class="run-row" data-request="${esc(r.id)}" role="button" tabindex="0">
       <i class="${dot}"></i>
-      <span><b>${esc(r.model || '?')}${r.condition ? ` · ${esc(r.condition)}` : ''}</b>
+      <span><b>${esc(r.model || '?')}${r.condition ? ` · ${esc(conditionText(r.condition))}` : ''}</b>
         <small>${esc(r.origin || '')} · ${esc(timeAgo(r.started_at))}</small></span>
       <code>${esc(String(metric))}</code></div>`;
   }).join('');
@@ -190,18 +190,18 @@ function renderOverviewSessions(sessions) {
   const switcherGlyph = $('#session-switcher-glyph');
   const latest = sessions[0];
   if (latest) {
-    switcherTitle.textContent = latest.title || 'sessão sem título';
-    switcherSub.textContent = latest.mode === 'controlled' ? 'experimento controlado' : 'conversa ramificada';
-    switcherGlyph.textContent = (latest.title || '?').charAt(0).toUpperCase();
+    switcherTitle.textContent = sessionTitleText(latest.title) || 'untitled session';
+    switcherSub.textContent = latest.mode === 'controlled' ? 'controlled experiment' : 'branched conversation';
+    switcherGlyph.textContent = (sessionTitleText(latest.title) || '?').charAt(0).toUpperCase();
     $('#session-switcher').onclick = () => openSessionById(latest.id);
   } else {
     $('#session-switcher').onclick = () => switchView('lab');
   }
-  if (!sessions.length) { wrap.innerHTML = emptyPanel('Nenhuma sessão ainda.'); return; }
+  if (!sessions.length) { wrap.innerHTML = emptyPanel('No sessions yet.'); return; }
   wrap.innerHTML = sessions.slice(0, 5).map(s => `
     <div class="run-row" data-session="${esc(s.id)}" role="button" tabindex="0">
       <i class="run-ok"></i>
-      <span><b>${esc(s.title)}</b><small>${s.mode === 'controlled' ? 'controlado' : 'ramificado'} · ${esc(s.base_config?.model || '?')}</small></span>
+      <span><b>${esc(sessionTitleText(s.title))}</b><small>${s.mode === 'controlled' ? 'controlled' : 'branched'} · ${esc(s.base_config?.model || '?')}</small></span>
       <code>${esc(timeAgo(s.created_at))}</code></div>`).join('');
   wrap.querySelectorAll('[data-session]').forEach(row => {
     row.onclick = () => openSessionById(row.dataset.session);

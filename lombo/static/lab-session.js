@@ -1,16 +1,16 @@
-/* Prompt lab — front vanilla. O Lab é só mais um cliente do proxy:
-   envia POST /api/chat com headers X-Lombo-* e tudo cai nas mesmas tabelas. */
+/* Prompt lab — vanilla frontend. The Lab is another proxy client:
+   sends POST /api/chat with X-Lombo-* headers and uses the same tables. */
 'use strict';
 
 const NUMERIC_PARAMS = new Set(['temperature', 'top_p', 'top_k', 'seed', 'repeat_penalty',
                                 'num_ctx', 'num_predict', 'min_p']);
 const VARIABLES = [
-  ['', 'base (controle)'], ['model', 'model'], ['prompt', 'prompt (mensagem)'],
+  ['', 'base (control)'], ['model', 'model'], ['prompt', 'prompt (message)'],
   ['temperature', 'temperature'], ['top_p', 'top_p'], ['top_k', 'top_k'], ['seed', 'seed'],
   ['repeat_penalty', 'repeat_penalty'], ['num_ctx', 'num_ctx'],
   ['num_predict', 'num_predict'], ['system', 'system prompt'],
 ];
-// parâmetros que NÃO viram options.* do Ollama — resolvidos por outro caminho
+// parameters that do NOT become Ollama options.* — resolved through another path
 const NON_OPTION_VARIABLES = new Set(['model', 'system', 'prompt']);
 
 const state = {
@@ -21,23 +21,36 @@ const state = {
   sending: false,
 };
 
-/* ================= setup de sessão ================= */
+/* ================= session setup ================= */
 function paneConfigRow(i, preset) {
   const row = document.createElement('div');
   row.className = 'pane-config';
   row.style.setProperty('--pane-color', PANE_COLORS[i % PANE_COLORS.length]);
   row.innerHTML = `
-    <label class="field"><span class="label">Painel</span>
+    <label class="field"><span class="label">Pane</span>
       <input class="p-name" value="${preset?.name || String.fromCharCode(65 + i)}"></label>
-    <label class="field"><span class="label">Variável manipulada</span>
+    <label class="field"><span class="label">Manipulated variable</span>
       <select class="p-var">${VARIABLES.map(([v, l]) =>
         `<option value="${v}"${preset?.variable === v ? ' selected' : ''}>${l}</option>`).join('')}
       </select></label>
-    <label class="field"><span class="label">Valor</span>
+    <label class="field"><span class="label">Value</span>
       <input class="p-val" value="${preset?.value ?? ''}" placeholder="—"></label>
-    <button class="btn p-del" type="button" title="remover painel">×</button>`;
+    <button class="btn p-del" type="button" title="remove pane">×</button>`;
+  // Display the legacy default in English and submit its original stored value.
+  const valueInput = row.querySelector('.p-val');
+  if (preset?.variable === 'prompt' && Object.hasOwn(PANE_VALUE_TEXT, preset?.value)) {
+    valueInput.value = PANE_VALUE_TEXT[preset.value];
+    valueInput.dataset.storedValue = preset.value;
+    valueInput.dataset.displayValue = valueInput.value;
+  }
   row.querySelector('.p-del').onclick = () => row.remove();
   return row;
+}
+
+function paneConfigValue(row) {
+  const input = $('.p-val', row);
+  return input.dataset.displayValue === input.value.trim()
+    ? input.dataset.storedValue : input.value.trim();
 }
 
 function initSetup() {
@@ -63,21 +76,21 @@ async function loadModels() {
   if (dot && detail) {
     dot.classList.toggle('off', !ollamaOk);
     detail.textContent = ollamaOk
-      ? `conectado · ${state.models.length} modelo(s)`
-      : 'offline · engine Transformers segue disponível';
+      ? `connected · ${state.models.length} model(s)`
+      : 'offline · Transformers engine remains available';
   }
 }
 
 $('#s-engine').onchange = () => {
   const hf = $('#s-engine').value === 'transformers';
-  $('#s-model').placeholder = hf ? 'ex.: Qwen/Qwen2.5-0.5B-Instruct' : 'modelo Ollama';
+  $('#s-model').placeholder = hf ? 'e.g. Qwen/Qwen2.5-0.5B-Instruct' : 'Ollama model';
   if (hf) $('#s-model').value = '';
   else if (!$('#s-model').value && state.models.length) $('#s-model').value = state.models[0];
 };
 
 $('#btn-create-session').onclick = async () => {
   const base_config = { engine: $('#s-engine').value, model: $('#s-model').value.trim() };
-  if (!base_config.model) { alert('Informe o modelo.'); return; }
+  if (!base_config.model) { alert('Enter a model.'); return; }
   if ($('#s-temp').value !== '') base_config.temperature = parseFloat($('#s-temp').value);
   if ($('#s-seed').value !== '') base_config.seed = parseInt($('#s-seed').value, 10);
   if ($('#s-max-tokens').value !== '') {
@@ -87,10 +100,11 @@ $('#btn-create-session').onclick = async () => {
   const panes = [...$('#pane-configs').children].map(row => ({
     name: $('.p-name', row).value.trim() || '?',
     variable: $('.p-var', row).value,
-    value: $('.p-val', row).value.trim(),
+    value: paneConfigValue(row),
   }));
-  if (panes.length < 2) { alert('Crie pelo menos 2 painéis para comparar.'); return; }
+  if (panes.length < 2) { alert('Create at least 2 panes to compare.'); return; }
   const body = {
+    // Keep generated titles stable in storage; translate them when displayed.
     title: $('#s-title').value.trim() || `Sessão ${new Date().toLocaleString()}`,
     mode: document.querySelector('input[name="s-mode"]:checked').value,
     base_config, panes,
@@ -107,7 +121,7 @@ async function loadSessionList() {
   list.innerHTML = '';
   for (const s of data.sessions || []) {
     const b = document.createElement('button');
-    b.innerHTML = `<strong>${esc(s.title)}</strong><br>
+    b.innerHTML = `<strong>${esc(sessionTitleText(s.title))}</strong><br>
       <span class="meta">${s.mode} · ${s.base_config.model || '?'} · ${s.created_at.slice(0, 16)}</span>`;
     b.onclick = async () => {
       const full = await (await fetch(`${API}/lab/sessions/${s.id}`)).json();
@@ -118,7 +132,7 @@ async function loadSessionList() {
   $('#sessions-prev').hidden = !(data.sessions || []).length;
 }
 
-/* ================= sessão ativa ================= */
+/* ================= active session ================= */
 function conditionOf(pane) {
   return pane.variable ? `${pane.variable}=${pane.value}` : 'base';
 }
@@ -132,9 +146,9 @@ function openSession(session, pastRequests) {
   $('#session-bar').hidden = false;
   $('#bench').hidden = false;
   $('#composer').hidden = false;
-  $('#session-title').textContent = session.title;
+  $('#session-title').textContent = sessionTitleText(session.title);
   const mode = $('#session-mode');
-  mode.textContent = session.mode === 'controlled' ? 'experimento controlado' : 'conversa ramificada';
+  mode.textContent = session.mode === 'controlled' ? 'controlled experiment' : 'branched conversation';
   mode.classList.toggle('controlled', session.mode === 'controlled');
   $('#session-base').textContent = 'base: ' + Object.entries(session.base_config)
     .map(([k, v]) => `${k}=${String(v).slice(0, 40)}`).join(' · ');
@@ -146,23 +160,23 @@ function openSession(session, pastRequests) {
     const h = document.createElement('div');
     h.className = 'pane-head';
     h.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
-    h.innerHTML = `<span class="pane-name">painel ${esc(pane.name)}</span>
-      <span class="pane-cond ${pane.variable ? '' : 'base'}">${esc(pane.condition)}</span>`;
+    h.innerHTML = `<span class="pane-name">pane ${esc(pane.name)}</span>
+      <span class="pane-cond ${pane.variable ? '' : 'base'}">${esc(conditionText(pane.condition))}</span>`;
     heads.appendChild(h);
   }
   $('#turns').innerHTML = '';
   renderPastTurns(pastRequests);
   buildComposerBoxes();
-  // se alguma variável manipulada for o próprio prompt, começa dessincronizado
-  // — cada painel precisa mesmo de um texto diferente.
+  // if any manipulated variable is the prompt itself, start unsynchronized
+  // — each pane needs different text.
   $('#chk-sync').checked = !state.panes.some(p => p.variable === 'prompt');
 }
 
-// Casa um request com o painel que o gerou. branch_id = "pane-{idx}" é
-// enviado em TODO envio (não só no modo ramificado) só pra isso — é a única
-// forma confiável, já que duas panes podem ter a mesma condition (dois
-// modelos comparados, só um com variável declarada, etc.). condition entra
-// só como fallback pra registros antigos gravados antes desse identificador.
+// Match a request to its originating pane. branch_id = "pane-{idx}" is
+// sent on EVERY submission (including controlled mode) for this — it is the only
+// reliable way, since two panes can share a condition (two
+// models compared, only one with a declared variable, etc.). condition is
+// only a fallback for older records saved before this identifier.
 function findReqForPane(list, pane) {
   return list.find(r => r.branch_id === `pane-${pane.idx}`) ||
          list.find(r => r.condition === pane.condition);
@@ -206,7 +220,7 @@ function renderPastTurns(requests) {
   }
 }
 
-/* ================= envio: um composer por painel ================= */
+/* ================= sending: one composer per pane ================= */
 function buildComposerBoxes() {
   const grid = $('#composer-grid');
   grid.innerHTML = '';
@@ -216,8 +230,8 @@ function buildComposerBoxes() {
     field.className = 'field';
     field.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
     field.innerHTML = `<span class="label" style="color:${PANE_COLORS[pane.idx % PANE_COLORS.length]}">
-        painel ${esc(pane.name)}</span>
-      <textarea class="composer-box" placeholder="Mensagem para o painel ${esc(pane.name)}…"></textarea>`;
+        pane ${esc(pane.name)}</span>
+      <textarea class="composer-box" placeholder="Message for pane ${esc(pane.name)}…"></textarea>`;
     grid.appendChild(field);
   }
   const boxes = [...grid.querySelectorAll('.composer-box')];
@@ -240,7 +254,7 @@ $('#btn-send').onclick = () => {
   const texts = boxes.map(b => b.value.trim());
   if (!texts.some(Boolean)) return;
   if (texts.some(t => !t)) {
-    alert('Preencha a mensagem de todos os painéis (ou ligue "mensagens sincronizadas").');
+    alert('Enter a message for every pane (or enable "synchronized messages").');
     return;
   }
   sendTurn(texts, rid(), 1);
@@ -250,10 +264,10 @@ $('#btn-send').onclick = () => {
 async function sendTurn(texts, turnId, replicate) {
   state.sending = true;
   $('#btn-send').disabled = true;
-  $('#composer-status').textContent = 'gerando…';
+  $('#composer-status').textContent = 'generating…';
   const pairId = rid();
-  // seed explícita por rodada (igual em todos os painéis) quando ninguém definiu:
-  // garante que a execução seja replayável (gancho da Fase 3 / NNsight).
+  // explicit seed per round (the same in all panes) when none is set:
+  // ensures the run can be replayed (hook for Phase 3 / NNsight).
   const injectedSeed = Math.floor(Math.random() * 2 ** 31);
   const turn = makeTurnDom(texts, { texts, turnId }, replicate);
 
@@ -284,7 +298,7 @@ function pollTransformerStatus(model) {
         $('#composer-status').textContent = status.message +
           (status.state === 'loading' ? '…' : '');
       }
-    } catch { /* a requisição principal exibirá o erro de conexão */ }
+    } catch { /* the main request will display the connection error */ }
     if (active) setTimeout(tick, 750);
   };
   tick();
@@ -323,15 +337,15 @@ async function streamToCell(pane, prompt, condition, cell, meta) {
     'X-Lombo-Session': state.session.id,
     'X-Lombo-Turn': meta.turnId,
     'X-Lombo-Pair': meta.pairId,
-    // HTTP headers só aceitam ISO-8859-1; condition é texto livre (pode ter
-    // '≠', emoji, aspas curvas...) então vai percent-encoded — o proxy decodifica.
+    // HTTP headers only accept ISO-8859-1; condition is free text (may contain
+    // '≠', emoji, curly quotes...) so it is percent-encoded — the proxy decodes it.
     'X-Lombo-Condition': encodeURIComponent(condition),
     'X-Lombo-Replicate': String(meta.replicate),
   };
-  // identifica o painel de origem independente do texto de condition — duas
-  // panes podem ter a MESMA condition (ex.: dois modelos, só um deles com
-  // variável declarada), então casar por condition sozinho gruda as duas no
-  // mesmo registro. branch_id também encadeia o histórico no modo ramificado.
+  // identify the originating pane independently of condition text — two
+  // panes can have the SAME condition (e.g. two models, only one with a
+  // declared variable), so matching only by condition links both to the
+  // same record. branch_id also links history in branched mode.
   headers['X-Lombo-Branch'] = `pane-${pane.idx}`;
   if (state.session.mode === 'branched' && pane.lastRequestId) {
     headers['X-Lombo-Parent'] = pane.lastRequestId;
@@ -390,7 +404,7 @@ async function streamToCell(pane, prompt, condition, cell, meta) {
   }
 }
 
-/* após a rodada: busca os registros gravados (ids, métricas, ttft) pelo pair_id */
+/* after the round: fetch saved records (ids, metrics, ttft) by pair_id */
 async function attachPairData(turn, pairId) {
   let requests = [];
   for (let attempt = 0; attempt < 12; attempt++) {
@@ -399,7 +413,7 @@ async function attachPairData(turn, pairId) {
       const data = await (await fetch(`${API}/compare?pair_id=${pairId}`)).json();
       requests = data.requests || [];
       if (requests.length >= state.panes.length) break;
-    } catch { /* proxy ocupado; tenta de novo */ }
+    } catch { /* proxy busy; try again */ }
   }
   for (const pane of state.panes) {
     const cell = turn.cells[pane.idx];
@@ -416,18 +430,18 @@ async function attachPairData(turn, pairId) {
   if (texts.filter(Boolean).length >= 2) renderDiff(turn, texts[0], texts[1], pairId);
 }
 
-/* ================= DOM da rodada ================= */
+/* ================= Round DOM ================= */
 function makeTurnDom(texts, resendInfo, replicate) {
   const turnEl = document.createElement('div');
   turnEl.className = 'turn';
   const meta = document.createElement('div');
   meta.className = 'turn-meta';
-  meta.innerHTML = `<span class="label">rodada${replicate > 1 ? ` · réplica ${replicate}` : ''}</span>`;
+  meta.innerHTML = `<span class="label">round${replicate > 1 ? ` · replicate ${replicate}` : ''}</span>`;
   if (resendInfo && state.session.mode === 'controlled') {
     const btn = document.createElement('button');
     btn.className = 'btn';
     btn.style.marginLeft = '10px';
-    btn.textContent = 'reenviar (nova réplica)';
+    btn.textContent = 'resend (new replicate)';
     let count = replicate;
     btn.onclick = () => { if (!state.sending) sendTurn(resendInfo.texts, resendInfo.turnId, ++count); };
     meta.appendChild(btn);
@@ -438,11 +452,11 @@ function makeTurnDom(texts, resendInfo, replicate) {
   if (allSame) {
     const user = document.createElement('div');
     user.className = 'user-msg';
-    user.textContent = texts[0] || '(prompt indisponível)';
+    user.textContent = texts[0] || '(prompt unavailable)';
     turnEl.appendChild(user);
   } else {
-    // mensagens divergem entre painéis: uma bolha por painel, não uma única
-    // bolha compartilhada — é exatamente o caso "mesma base, prompts diferentes".
+    // messages differ across panes: one bubble per pane, rather than one
+    // shared bubble — exactly the "same baseline, different prompts" case.
     const row = document.createElement('div');
     row.className = 'user-msgs';
     row.style.gridTemplateColumns = `repeat(${state.panes.length}, 1fr)`;
@@ -450,7 +464,7 @@ function makeTurnDom(texts, resendInfo, replicate) {
       const bubble = document.createElement('div');
       bubble.className = 'user-msg pane-msg';
       bubble.style.setProperty('--pane-color', PANE_COLORS[pane.idx % PANE_COLORS.length]);
-      bubble.innerHTML = `<span class="pane-msg-name">${esc(pane.name)}</span>${esc(texts[i] || '(vazio)')}`;
+      bubble.innerHTML = `<span class="pane-msg-name">${esc(pane.name)}</span>${esc(texts[i] || '(empty)')}`;
       row.appendChild(bubble);
     });
     turnEl.appendChild(row);
@@ -506,7 +520,7 @@ function finishCellFooter(cell, info) {
     for (const label of state.labels) {
       const chip = document.createElement('button');
       chip.className = 'chip';
-      chip.textContent = label.replace(/_/g, ' ');
+      chip.textContent = humanLabelText(label);
       chip.onclick = async () => {
         chip.disabled = true;
         await fetch(`${API}/requests/${info.id}/evaluations`, {
@@ -520,13 +534,13 @@ function finishCellFooter(cell, info) {
     footer.appendChild(labels);
     const detail = document.createElement('button');
     detail.className = 'btn';
-    detail.textContent = 'detalhes';
+    detail.textContent = 'details';
     detail.onclick = () => openDrawer(info.id);
     footer.appendChild(detail);
   }
 }
 
-/* ================= diff palavra a palavra (LCS) ================= */
+/* ================= word-by-word diff (LCS) ================= */
 function wordDiff(a, b) {
   const A = a.split(/\s+/).slice(0, 800), B = b.split(/\s+/).slice(0, 800);
   const n = A.length, m = B.length;
@@ -558,10 +572,10 @@ function renderDiff(turn, textA, textB, pairId) {
   const nameA = state.panes[0].name, nameB = state.panes[1].name;
   strip.innerHTML = `<div class="diff-head">
       <span class="label">diff ${esc(nameA)} → ${esc(nameB)}
-        (<del>só em ${esc(nameA)}</del> / <ins>só em ${esc(nameB)}</ins>)${
-        state.panes.length > 2 ? ' — painéis extras não incluídos no diff' : ''}</span>
-      <button class="btn nn-exp-btn" type="button">Ver no Experimentos →</button>
-      <button class="btn nn-pair-btn" type="button">Abrir pacote NNsight (par)</button>
+        (<del>only in ${esc(nameA)}</del> / <ins>only in ${esc(nameB)}</ins>)${
+        state.panes.length > 2 ? ' — extra panes not included in the diff' : ''}</span>
+      <button class="btn nn-exp-btn" type="button">View in Experiments →</button>
+      <button class="btn nn-pair-btn" type="button">Open NNsight bundle (pair)</button>
     </div><div class="diff-body">${parts.join(' ')}</div>`;
   const expBtn = $('.nn-exp-btn', strip);
   if (expBtn) expBtn.onclick = () => { switchView('experiments'); window.loadExperimentPair?.(pairId); };

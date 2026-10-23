@@ -1,4 +1,4 @@
-"""Camadas de parâmetros e parsing do bloco `parameters` — funções puras."""
+"""Parameter layers and `parameters` block parsing — pure functions."""
 
 from lombo.baseline import (
     OLLAMA_BUILTIN_DEFAULTS,
@@ -28,14 +28,14 @@ def test_layer_params_request_wins_and_diff():
 
     assert inferred["temperature"] == {"value": 0.1, "source": "request", "inferred": True}
     assert inferred["top_k"] == {"value": 5, "source": "request", "inferred": True}
-    # sem request nem modelfile → default do Ollama
+    # no request or modelfile → Ollama default
     assert inferred["top_p"] == {"value": 0.9, "source": "ollama_default", "inferred": True}
-    # modelfile vence o default
+    # modelfile overrides the default
     assert inferred["num_ctx"] == {"value": 8192, "source": "modelfile", "inferred": True}
 
     assert diff["temperature"] == {"value": 0.1, "base_value": 0.6, "base_source": "modelfile"}
     assert diff["top_k"] == {"value": 5, "base_value": 40, "base_source": "ollama_default"}
-    assert "num_ctx" not in diff  # não foi solicitado, logo não difere do base
+    assert "num_ctx" not in diff  # not requested, so it does not differ from the baseline
     assert base["temperature"] == 0.6
 
 
@@ -59,5 +59,5 @@ def test_confirmed_only_from_response():
         {"model": "llama3.2:3b", "done": True, "done_reason": "stop", "eval_count": 42})
     assert confirmed["model"]["value"] == "llama3.2:3b"
     assert confirmed["done_reason"]["value"] == "stop"
-    # parâmetros de amostragem NUNCA aparecem como confirmados
+    # sampling parameters NEVER appear as confirmed
     assert "temperature" not in confirmed

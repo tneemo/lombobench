@@ -27,7 +27,7 @@ class FakeConn:
     """Dispatches the two SELECTs the endpoint runs, by SQL fragment."""
     def __init__(self, engine_name="transformers", prompt=None):
         self.engine_name = engine_name
-        self.prompt = prompt if prompt is not None else [{"role": "user", "content": "oi"}]
+        self.prompt = prompt if prompt is not None else [{"role": "user", "content": "hi"}]
 
     def execute(self, sql, params):
         if "FROM requests" in sql:
@@ -76,7 +76,7 @@ def test_diagnostics_endpoint_returns_layer_payload():
 
     assert result["num_layers"] == 1
     assert result["target_token"] == "Paris"
-    assert engine.calls == [([{"role": "user", "content": "oi"}], "Paris", 5)]
+    assert engine.calls == [([{"role": "user", "content": "hi"}], "Paris", 5)]
 
 
 def test_diagnostics_endpoint_rejects_non_transformers():

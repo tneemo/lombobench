@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="pt-BR">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -11,182 +11,182 @@
 <aside class="sidebar">
   <div class="brand"><span class="brand-mark">L</span><span class="wordmark">lombo<b>lab</b></span></div>
   <button class="project-switcher" type="button" id="session-switcher">
-    <span class="project-glyph" id="session-switcher-glyph">+</span><span><b id="session-switcher-title">Nova investigação</b><small id="session-switcher-sub">sem sessão ativa</small></span><span class="chevron">→</span>
+    <span class="project-glyph" id="session-switcher-glyph">+</span><span><b id="session-switcher-title">New investigation</b><small id="session-switcher-sub">no active session</small></span><span class="chevron">→</span>
   </button>
   <span class="nav-section">Workspace</span>
-  <nav class="nav" role="tablist" aria-label="Seções do Lab">
+  <nav class="nav" role="tablist" aria-label="Lab sections">
     <button class="nav-item" role="tab" id="tab-overview" aria-selected="true">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M4 4h6v6H4zM14 4h6v10h-6zM4 14h6v6H4zM14 18h6v2h-6z"/></svg>
-      <span class="nav-label">Visão geral</span><kbd>G</kbd></button>
+      <span class="nav-label">Overview</span><kbd>G</kbd></button>
     <button class="nav-item" role="tab" id="tab-lab" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M9 3h6M10 3v6.5L5 18a2 2 0 0 0 1.8 3h10.4A2 2 0 0 0 19 18l-5-8.5V3" stroke-linecap="round" stroke-linejoin="round"/></svg>
       <span class="nav-label">Prompt lab</span><kbd>P</kbd></button>
-    <span class="nav-section in-nav">Análise</span>
+    <span class="nav-section in-nav">Analysis</span>
     <button class="nav-item" role="tab" id="tab-analysis" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M4 20V6M4 20h16M8 20v-6M12 20v-10M16 20v-4M20 20V8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Execuções</span><span class="nav-count" id="nav-count-runs" hidden></span></button>
+      <span class="nav-label">Runs</span><span class="nav-count" id="nav-count-runs" hidden></span></button>
     <button class="nav-item" role="tab" id="tab-experiments" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M9 3h6M10 3v5L4 19a1 1 0 0 0 1 2h14a1 1 0 0 0 1-2l-6-11V3M8 15h8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Experimentos</span><kbd>E</kbd></button>
+      <span class="nav-label">Experiments</span><kbd>E</kbd></button>
     <button class="nav-item" role="tab" id="tab-performance" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M12 12 6 6M12 4a8 8 0 1 1-8 8" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Desempenho</span><kbd>D</kbd></button>
+      <span class="nav-label">Performance</span><kbd>D</kbd></button>
     <button class="nav-item" role="tab" id="tab-benchmarks" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M5 19V9m5 10V5m5 14v-7m5 7V3M3 19h19" stroke-linecap="round"/></svg>
       <span class="nav-label">Benchmarks</span><kbd>B</kbd></button>
-    <span class="nav-section in-nav">Interpretabilidade</span>
+    <span class="nav-section in-nav">Interpretability</span>
     <button class="nav-item" role="tab" id="tab-diagnostics" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M12 3 3 8l9 5 9-5-9-5ZM3 12l9 5 9-5M3 16l9 5 9-5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Camadas & logits</span><kbd>L</kbd></button>
+      <span class="nav-label">Layers & logits</span><kbd>L</kbd></button>
     <button class="nav-item" role="tab" id="tab-activations" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><path d="M3 12h3l2-7 4 14 3-10 2 6h4" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Ativações</span><kbd>A</kbd></button>
-    <span class="nav-section in-nav">Biblioteca</span>
+      <span class="nav-label">Activations</span><kbd>A</kbd></button>
+    <span class="nav-section in-nav">Library</span>
     <button class="nav-item" role="tab" id="tab-huggingface" aria-selected="false">
       <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true">
         <path d="M7.5 10.5v-1M16.5 10.5v-1M8.5 15c2.1 1.8 4.9 1.8 7 0M5 6.5C6.8 4.2 9.1 3 12 3s5.2 1.2 7 3.5M4.5 13.5 2.5 15M19.5 13.5l2 1.5M5 18l-1 2.5M19 18l1 2.5" stroke-linecap="round" stroke-linejoin="round"/></svg>
-      <span class="nav-label">Modelos & datasets</span></button>
+      <span class="nav-label">Models & datasets</span></button>
   </nav>
   <div class="sidebar-foot">
-    <div class="runtime-status"><i id="runtime-dot"></i><span><b>Ollama</b><small id="runtime-detail">verificando…</small></span></div>
-    <span class="privacy">Dados locais · lombo.db</span>
+    <div class="runtime-status"><i id="runtime-dot"></i><span><b>Ollama</b><small id="runtime-detail">checking…</small></span></div>
+    <span class="privacy">Local data · lombo.db</span>
   </div>
 </aside>
 
 <div class="workspace">
 <header class="global-bar">
-  <div class="crumb"><span>Research</span><b>/</b><strong id="global-view-name">Visão geral</strong></div>
+  <div class="crumb"><span>Research</span><b>/</b><strong id="global-view-name">Overview</strong></div>
   <div class="global-actions">
-    <span class="sync-state"><i></i> gravando em lombo.db</span>
+    <span class="sync-state"><i></i> recording to lombo.db</span>
   </div>
 </header>
 <main>
-  <!-- ============ VISÃO GERAL ============ -->
+  <!-- ============ OVERVIEW ============ -->
   <section class="view active overview" id="view-overview">
     <header class="page-toolbar overview-toolbar">
       <div class="model-identity">
         <span class="model-avatar" id="ov-model-avatar">·</span>
-        <div><span class="eyebrow">Modelo ativo</span><h1 id="ov-model-name">nenhum modelo ainda</h1></div>
+        <div><span class="eyebrow">Active model</span><h1 id="ov-model-name">no model yet</h1></div>
         <span class="model-tag" id="ov-model-engine" hidden></span>
       </div>
       <div class="model-facts">
-        <span><small>EXECUÇÕES</small><b id="ov-fact-runs">—</b><i class="fact-spark" id="ov-spark-runs"></i></span>
-        <span><small>SESSÕES</small><b id="ov-fact-sessions">—</b></span>
-        <span><small>TOK/S MÉDIO</small><b id="ov-fact-tps">—</b><i class="fact-spark" id="ov-spark-tps"></i></span>
-        <span><small>TTFT MÉDIO</small><b id="ov-fact-ttft">—</b><i class="fact-spark" id="ov-spark-ttft"></i></span>
+        <span><small>RUNS</small><b id="ov-fact-runs">—</b><i class="fact-spark" id="ov-spark-runs"></i></span>
+        <span><small>SESSIONS</small><b id="ov-fact-sessions">—</b></span>
+        <span><small>AVG TOK/S</small><b id="ov-fact-tps">—</b><i class="fact-spark" id="ov-spark-tps"></i></span>
+        <span><small>AVG TTFT</small><b id="ov-fact-ttft">—</b><i class="fact-spark" id="ov-spark-ttft"></i></span>
       </div>
-      <button class="btn primary" type="button" data-open-view="lab"><span>▶</span> Nova inferência</button>
+      <button class="btn primary" type="button" data-open-view="lab"><span>▶</span> New inference</button>
     </header>
 
     <div class="research-canvas">
       <section class="investigation-strip" id="ov-session-strip">
-        <div><span class="pulse-dot"></span><span><small id="ov-session-eyebrow">SESSÃO MAIS RECENTE</small><b id="ov-session-title">nenhuma sessão criada</b></span></div>
-        <div class="hypothesis"><small>CONFIGURAÇÃO BASE</small><span id="ov-session-base">crie uma sessão no Prompt lab para começar a comparar condições</span></div>
+        <div><span class="pulse-dot"></span><span><small id="ov-session-eyebrow">LATEST SESSION</small><b id="ov-session-title">no sessions created</b></span></div>
+        <div class="hypothesis"><small>BASE CONFIGURATION</small><span id="ov-session-base">create a session in Prompt lab to start comparing conditions</span></div>
         <div class="strip-meta">
-          <span><small>PAINÉIS</small><b id="ov-session-panes">—</b></span>
-          <span><small>EXECUÇÕES</small><b id="ov-session-runs">—</b></span>
-          <span><small>ÚLTIMA EXECUÇÃO</small><b id="ov-session-last">—</b></span>
+          <span><small>PANES</small><b id="ov-session-panes">—</b></span>
+          <span><small>RUNS</small><b id="ov-session-runs">—</b></span>
+          <span><small>LATEST RUN</small><b id="ov-session-last">—</b></span>
         </div>
-        <button class="btn" type="button" id="ov-open-session" data-open-view="lab">Abrir estudo →</button>
+        <button class="btn" type="button" id="ov-open-session" data-open-view="lab">Open study →</button>
       </section>
 
       <div class="overview-grid">
         <section class="viz-panel layer-map-panel">
-          <header class="panel-head"><div><span class="eyebrow">Medições reais</span><h2>Throughput por execução</h2><p>tokens/s de cada execução registrada · uma série por modelo</p></div><div class="legend" id="ov-tps-legend"></div></header>
+          <header class="panel-head"><div><span class="eyebrow">Real measurements</span><h2>Throughput per run</h2><p>tokens/s for each recorded run · one series per model</p></div><div class="legend" id="ov-tps-legend"></div></header>
           <div class="chart-wrap hero-chart" id="ov-tps-chart"></div>
-          <footer class="finding" id="ov-finding" hidden><span class="finding-icon">↗</span><div><small>LEITURA</small><b id="ov-finding-title"></b><p id="ov-finding-note"></p></div><button class="btn" type="button" data-open-view="analysis">Ver execuções</button></footer>
+          <footer class="finding" id="ov-finding" hidden><span class="finding-icon">↗</span><div><small>READOUT</small><b id="ov-finding-title"></b><p id="ov-finding-note"></p></div><button class="btn" type="button" data-open-view="analysis">View runs</button></footer>
         </section>
 
         <aside class="evidence-column">
-          <section class="viz-panel tokens-panel"><header class="panel-head compact"><div><span class="eyebrow">Agregado</span><h2>Execuções por modelo</h2></div></header>
+          <section class="viz-panel tokens-panel"><header class="panel-head compact"><div><span class="eyebrow">Aggregate</span><h2>Runs by model</h2></div></header>
             <ol class="token-bars" id="ov-models"></ol>
           </section>
-          <section class="viz-panel"><header class="panel-head compact"><div><span class="eyebrow">Prompt lab</span><h2>Sessões recentes</h2></div><button class="btn small" type="button" data-open-view="lab">Nova</button></header>
+          <section class="viz-panel"><header class="panel-head compact"><div><span class="eyebrow">Prompt lab</span><h2>Recent sessions</h2></div><button class="btn small" type="button" data-open-view="lab">New</button></header>
             <div class="run-list" id="ov-sessions"></div>
           </section>
         </aside>
 
-        <section class="viz-panel compare-panel"><header class="panel-head compact"><div><span class="eyebrow">Histórico</span><h2>Execuções recentes</h2></div><button class="btn small" type="button" data-open-view="analysis">Ver todas</button></header>
+        <section class="viz-panel compare-panel"><header class="panel-head compact"><div><span class="eyebrow">History</span><h2>Recent runs</h2></div><button class="btn small" type="button" data-open-view="analysis">View all</button></header>
           <div class="run-list" id="ov-runs"></div>
         </section>
 
-        <section class="viz-panel latency-panel"><header class="panel-head compact"><div><span class="eyebrow">Breakdown real</span><h2>Latência média por modelo</h2></div><button class="btn small" type="button" data-open-view="performance">Ver desempenho →</button></header>
+        <section class="viz-panel latency-panel"><header class="panel-head compact"><div><span class="eyebrow">Actual breakdown</span><h2>Average latency by model</h2></div><button class="btn small" type="button" data-open-view="performance">View performance →</button></header>
           <div class="chart-wrap" id="ov-latency-chart"></div>
         </section>
       </div>
     </div>
   </section>
 
-  <!-- ============ LABORATÓRIO ============ -->
+  <!-- ============ LABORATORY ============ -->
   <section class="view" id="view-lab">
     <div class="session-bar" id="session-bar" hidden>
       <span class="session-title" id="session-title"></span>
       <span class="mode-chip" id="session-mode"></span>
       <span class="base-summary" id="session-base"></span>
       <span class="spacer" style="flex:1"></span>
-      <button class="btn" id="btn-new-session">Nova sessão</button>
+      <button class="btn" id="btn-new-session">New session</button>
     </div>
 
-    <!-- setup de nova sessão -->
+    <!-- new session setup -->
     <div class="setup" id="setup">
-      <h2>Nova sessão de experimento</h2>
+      <h2>New experiment session</h2>
       <div class="grid">
-        <label class="field"><span class="label">Título</span>
-          <input id="s-title" placeholder="ex.: temperatura 0.2 × 0.8"></label>
+        <label class="field"><span class="label">Title</span>
+          <input id="s-title" placeholder="e.g. temperature 0.2 × 0.8"></label>
         <label class="field"><span class="label">Engine</span>
           <select id="s-engine">
             <option value="ollama">Ollama</option>
             <option value="transformers">Transformers (Hugging Face)</option>
           </select></label>
-        <label class="field"><span class="label">Modelo base</span>
-          <input id="s-model" list="ollama-models" placeholder="modelo Ollama">
+        <label class="field"><span class="label">Base model</span>
+          <input id="s-model" list="ollama-models" placeholder="Ollama model">
           <datalist id="ollama-models"></datalist></label>
-        <label class="field"><span class="label">Temperature base</span>
-          <input id="s-temp" type="number" step="0.1" placeholder="(default do modelo)"></label>
-        <label class="field"><span class="label">Seed base</span>
-          <input id="s-seed" type="number" placeholder="(auto por rodada)"></label>
-        <label class="field"><span class="label">Máx. novos tokens</span>
-          <input id="s-max-tokens" type="number" min="1" placeholder="256 em Transformers"></label>
+        <label class="field"><span class="label">Base temperature</span>
+          <input id="s-temp" type="number" step="0.1" placeholder="(model default)"></label>
+        <label class="field"><span class="label">Base seed</span>
+          <input id="s-seed" type="number" placeholder="(auto per round)"></label>
+        <label class="field"><span class="label">Max new tokens</span>
+          <input id="s-max-tokens" type="number" min="1" placeholder="256 in Transformers"></label>
       </div>
-      <label class="field" style="margin-top:12px"><span class="label">System prompt base (opcional)</span>
+      <label class="field" style="margin-top:12px"><span class="label">Base system prompt (optional)</span>
         <textarea id="s-system" rows="2"></textarea></label>
 
       <fieldset>
-        <legend>Modo</legend>
+        <legend>Mode</legend>
         <label class="check"><input type="radio" name="s-mode" value="controlled" checked>
-          Experimento controlado (padrão)</label>
-        <p class="mode-desc">Cada rodada é independente: todos os painéis recebem o mesmo
-          histórico-base e apenas a variável do painel difere. É o modo comparável, usado para o paper.</p>
+          Controlled experiment (default)</label>
+        <p class="mode-desc">Each round is independent: all panes receive the same
+          base history and only the pane variable differs. This is the comparable mode used for the paper.</p>
         <label class="check" style="margin-top:8px"><input type="radio" name="s-mode" value="branched">
-          Conversa ramificada</label>
-        <p class="mode-desc">Após a primeira resposta, cada painel segue seu próprio histórico —
-          os contextos divergem naturalmente (exploração livre).</p>
+          Branched conversation</label>
+        <p class="mode-desc">After the first response, each pane follows its own history —
+          contexts diverge naturally (free exploration).</p>
       </fieldset>
 
       <fieldset>
-        <legend>Painéis — uma variável manipulada por painel</legend>
+        <legend>Panes — one manipulated variable per pane</legend>
         <div id="pane-configs"></div>
         <div style="margin-top:10px">
-          <button class="btn" id="btn-add-pane" type="button">+ painel</button>
+          <button class="btn" id="btn-add-pane" type="button">+ pane</button>
         </div>
       </fieldset>
 
       <div class="actions">
-        <button class="btn primary" id="btn-create-session">Criar sessão</button>
-        <span class="notice-inline">Sem seed definida, o Lab injeta uma seed explícita por rodada
-          (igual em todos os painéis) para permitir replay futuro.</span>
+        <button class="btn primary" id="btn-create-session">Create session</button>
+        <span class="notice-inline">Without a seed, the Lab injects an explicit seed per round
+          (the same in all panes) to enable future replay.</span>
       </div>
 
       <div class="sessions-prev" id="sessions-prev" hidden>
-        <span class="label">Sessões anteriores</span>
+        <span class="label">Previous sessions</span>
         <div id="sessions-list"></div>
       </div>
     </div>
 
-    <!-- bancada -->
+    <!-- workbench -->
     <div class="bench" id="bench" hidden>
       <div class="pane-heads" id="pane-heads"></div>
       <div id="turns"></div>
@@ -196,95 +196,95 @@
       <div class="composer-grid" id="composer-grid"></div>
       <div class="row">
         <label class="check"><input type="checkbox" id="chk-sync" checked>
-          mensagens sincronizadas (mesmo texto em todos os painéis)</label>
+          synchronized messages (same text in all panes)</label>
         <span class="spacer"></span>
         <span class="notice-inline" id="composer-status"></span>
-        <button class="btn primary" id="btn-send">Enviar aos painéis</button>
+        <button class="btn primary" id="btn-send">Send to panes</button>
       </div>
     </div>
   </section>
 
-  <!-- ============ ANÁLISE ============ -->
+  <!-- ============ ANALYSIS ============ -->
   <section class="view analysis" id="view-analysis">
     <div class="toolbar">
-      <input id="f-model" placeholder="modelo">
-      <input id="f-experiment" placeholder="experimento">
-      <input id="f-condition" placeholder="condição">
+      <input id="f-model" placeholder="model">
+      <input id="f-experiment" placeholder="experiment">
+      <input id="f-condition" placeholder="condition">
       <select id="f-origin">
-        <option value="">origem: todas</option>
+        <option value="">origin: all</option>
         <option value="lab">lab</option>
         <option value="external">external</option>
         <option value="benchmark">benchmark</option>
       </select>
       <select id="f-status">
-        <option value="">status: todos</option>
-        <option value="ok">sucesso</option>
-        <option value="error">erro</option>
+        <option value="">status: all</option>
+        <option value="ok">success</option>
+        <option value="error">error</option>
       </select>
-      <button class="btn" id="btn-filter">Filtrar</button>
-      <button class="btn" id="btn-toggle-charts" type="button" aria-expanded="true">Ocultar gráficos</button>
+      <button class="btn" id="btn-filter">Filter</button>
+      <button class="btn" id="btn-toggle-charts" type="button" aria-expanded="true">Hide charts</button>
       <span class="spacer" style="flex:1"></span>
       <a class="btn" href="/_lombo/api/export?format=csv" download>Export CSV</a>
       <a class="btn" href="/_lombo/api/export?format=json" download>Export JSON</a>
     </div>
     <div class="analysis-charts" id="analysis-charts">
-      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Distribuição</span><h2>tok/s do filtro atual</h2></div></header><div class="chart-wrap small-chart" id="an-hist-tps"></div></section>
-      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Correlação</span><h2>TTFT × tokens de prompt</h2></div></header><div class="chart-wrap small-chart" id="an-scatter"></div></section>
-      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Volume</span><h2>Execuções por hora</h2></div></header><div class="chart-wrap small-chart" id="an-volume"></div></section>
+      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Distribution</span><h2>tok/s for the current filter</h2></div></header><div class="chart-wrap small-chart" id="an-hist-tps"></div></section>
+      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Correlation</span><h2>TTFT × prompt tokens</h2></div></header><div class="chart-wrap small-chart" id="an-scatter"></div></section>
+      <section class="viz-panel compact-chart"><header class="panel-head compact"><div><span class="eyebrow">Volume</span><h2>Runs per hour</h2></div></header><div class="chart-wrap small-chart" id="an-volume"></div></section>
     </div>
     <div class="table-wrap">
       <table class="req">
         <thead><tr>
-          <th>Início</th><th>Modelo</th><th>Origem</th><th>Condição</th>
-          <th>Variáveis ≠ base</th><th>tok</th><th>tok/s</th><th>TTFT ms</th><th>Duração</th><th>Status</th>
+          <th>Start</th><th>Model</th><th>Origin</th><th>Condition</th>
+          <th>Variables ≠ baseline</th><th>tok</th><th>tok/s</th><th>TTFT ms</th><th>Duration</th><th>Status</th>
         </tr></thead>
         <tbody id="req-rows"></tbody>
       </table>
     </div>
   </section>
 
-  <!-- ============ EXPERIMENTOS ============ -->
+  <!-- ============ EXPERIMENTS ============ -->
   <section class="view instrument-view" id="view-experiments">
     <header class="page-toolbar instrument-toolbar">
-      <div><span class="eyebrow">Histórico & reprodutibilidade</span><h1>Experimentos</h1><p>Leaderboard, impacto de parâmetro, comparação de pares e árvore de branches</p></div>
-      <label class="compact-field"><span>EXPERIMENTO</span><select id="exp-experiment"><option value="">todos os experimentos</option></select></label>
-      <label class="compact-field"><span>PARÂMETRO</span><select id="exp-param">
+      <div><span class="eyebrow">History & reproducibility</span><h1>Experiments</h1><p>Leaderboard, parameter impact, pair comparison and branch tree</p></div>
+      <label class="compact-field"><span>EXPERIMENT</span><select id="exp-experiment"><option value="">all experiments</option></select></label>
+      <label class="compact-field"><span>PARAMETER</span><select id="exp-param">
         <option value="temperature">temperature</option><option value="top_p">top_p</option>
         <option value="top_k">top_k</option><option value="seed">seed</option>
         <option value="repeat_penalty">repeat_penalty</option><option value="num_ctx">num_ctx</option>
         <option value="num_predict">num_predict</option></select></label>
-      <button class="btn" id="btn-exp-share" type="button">Compartilhar par →</button>
+      <button class="btn" id="btn-exp-share" type="button">Share pair →</button>
     </header>
     <div class="instrument-canvas experiments-layout">
       <section class="viz-panel leaderboard-panel">
-        <header class="panel-head"><div><span class="eyebrow">Ranking</span><h2>Leaderboard modelo × condição</h2><p>Agregado de execuções reais + avaliações heurísticas/humanas</p></div></header>
+        <header class="panel-head"><div><span class="eyebrow">Ranking</span><h2>Model × condition leaderboard</h2><p>Aggregated real runs + heuristic/human evaluations</p></div></header>
         <div class="table-wrap" id="exp-leaderboard"></div>
       </section>
 
       <section class="viz-panel param-impact-panel">
-        <header class="panel-head"><div><span class="eyebrow">Camada inferida</span><h2>Impacto de parâmetro</h2><p>tok/s, tokens e TTFT por valor observado — não confirmado pelo servidor</p></div></header>
+        <header class="panel-head"><div><span class="eyebrow">Inferred layer</span><h2>Parameter impact</h2><p>tok/s, tokens and TTFT by observed value — not confirmed by the server</p></div></header>
         <div class="chart-wrap medium-chart" id="exp-param-chart"></div>
         <div id="exp-param-table"></div>
       </section>
 
       <section class="viz-panel pair-compare-panel">
-        <header class="panel-head"><div><span class="eyebrow">Comparação</span><h2>Par selecionado</h2><p>Abra um par pelas execuções recentes, pelo Prompt lab ou pela árvore de branches</p></div></header>
+        <header class="panel-head"><div><span class="eyebrow">Comparison</span><h2>Selected pair</h2><p>Open a pair from recent runs, Prompt lab or the branch tree</p></div></header>
         <div id="exp-pair-detail"></div>
       </section>
 
       <section class="viz-panel branch-tree-panel">
-        <header class="panel-head compact"><div><span class="eyebrow">Sessões ramificadas</span><h2>Árvore de branches</h2></div>
-          <label class="compact-field"><span>SESSÃO</span><select id="exp-tree-session"></select></label></header>
+        <header class="panel-head compact"><div><span class="eyebrow">Branched sessions</span><h2>Branch tree</h2></div>
+          <label class="compact-field"><span>SESSION</span><select id="exp-tree-session"></select></label></header>
         <div id="exp-tree"></div>
       </section>
     </div>
   </section>
 
-  <!-- ============ DESEMPENHO ============ -->
+  <!-- ============ PERFORMANCE ============ -->
   <section class="view instrument-view" id="view-performance">
     <header class="page-toolbar instrument-toolbar">
-      <div><span class="eyebrow">Hardware & latência</span><h1>Desempenho</h1><p>Breakdown de latência, distribuições, atividade e VRAM — dados reais do lombo.db</p></div>
-      <label class="compact-field"><span>MODELO</span><select id="perf-model"><option value="">todos os modelos</option></select></label>
+      <div><span class="eyebrow">Hardware & latency</span><h1>Performance</h1><p>Latency breakdown, distributions, activity and VRAM — real data from lombo.db</p></div>
+      <label class="compact-field"><span>MODEL</span><select id="perf-model"><option value="">all models</option></select></label>
       <div class="segmented" id="perf-metric-toggle">
         <button class="active" type="button" data-metric="tokens_per_second">tok/s</button>
         <button type="button" data-metric="time_to_first_token_ms">TTFT</button>
@@ -292,65 +292,65 @@
       </div>
     </header>
     <div class="instrument-canvas performance-layout">
-      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Breakdown real</span><h2>Latência por modelo</h2><p>load → prompt eval → eval, médias em ms</p></div></header>
+      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Actual breakdown</span><h2>Latency by model</h2><p>load → prompt eval → eval, averages in ms</p></div></header>
         <div class="chart-wrap medium-chart" id="perf-latency-chart"></div></section>
-      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Distribuição</span><h2>Por modelo</h2><p>Violin plot a partir do histograma real da métrica selecionada</p></div></header>
+      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Distribution</span><h2>By model</h2><p>Violin plot from the actual histogram of the selected metric</p></div></header>
         <div class="chart-wrap medium-chart" id="perf-dist-chart"></div></section>
-      <section class="viz-panel timeline-panel"><header class="panel-head"><div><span class="eyebrow">Atividade</span><h2>Execuções ao longo do tempo</h2></div></header>
+      <section class="viz-panel timeline-panel"><header class="panel-head"><div><span class="eyebrow">Activity</span><h2>Runs over time</h2></div></header>
         <div class="chart-wrap medium-chart" id="perf-activity-chart"></div></section>
-      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Runtime</span><h2>VRAM / modelos carregados</h2><p>Extraído do estado observado (/api/ps) por execução</p></div></header>
+      <section class="viz-panel"><header class="panel-head"><div><span class="eyebrow">Runtime</span><h2>VRAM / loaded models</h2><p>Extracted from observed state (/api/ps) per run</p></div></header>
         <div class="chart-wrap medium-chart" id="perf-vram-chart"></div></section>
-      <section class="viz-panel envs-panel"><header class="panel-head"><div><span class="eyebrow">Hardware</span><h2>Ambientes observados</h2></div></header>
+      <section class="viz-panel envs-panel"><header class="panel-head"><div><span class="eyebrow">Hardware</span><h2>Observed environments</h2></div></header>
         <div id="perf-environments"></div></section>
     </div>
   </section>
 
-  <!-- ============ DIAGNÓSTICO DE CAMADAS ============ -->
+  <!-- ============ LAYER DIAGNOSTICS ============ -->
   <section class="view diagnostics" id="view-diagnostics">
     <header class="diag-toolbar">
-      <div class="diag-title"><span class="eyebrow">Interpretabilidade / logit lens</span><strong>Diagnóstico de camadas</strong></div>
+      <div class="diag-title"><span class="eyebrow">Interpretability / logit lens</span><strong>Layer diagnostics</strong></div>
       <div class="diag-controls">
-      <label class="field inline"><span class="label">Execução / condições</span>
-        <select id="diag-pair"><option value="">— selecione um par —</option></select></label>
-      <label class="field inline diag-target-field"><span class="label">Token-alvo</span>
-        <input id="diag-target" placeholder="Opcional · ex.: Paris"></label>
-      <button class="btn primary" id="btn-diagnose">Diagnosticar</button>
-      <button class="btn icon-btn" id="btn-diag-reload" title="Recarregar execuções" aria-label="Recarregar execuções">↻</button>
-      <button class="btn" id="btn-diag-help" aria-expanded="false">Metodologia</button>
+      <label class="field inline"><span class="label">Run / conditions</span>
+        <select id="diag-pair"><option value="">— select a pair —</option></select></label>
+      <label class="field inline diag-target-field"><span class="label">Target token</span>
+        <input id="diag-target" placeholder="Optional · e.g. Paris"></label>
+      <button class="btn primary" id="btn-diagnose">Diagnose</button>
+      <button class="btn icon-btn" id="btn-diag-reload" title="Reload runs" aria-label="Reload runs">↻</button>
+      <button class="btn" id="btn-diag-help" aria-expanded="false">Methodology</button>
       </div>
       <span class="diag-status" id="diag-status" role="status" aria-live="polite"></span>
     </header>
     <div class="diag-method" id="diag-method" hidden>
-      <strong>Evidência correlacional.</strong> O logit lens indica onde uma previsão se torna legível ao projetar o residual pela norma final e <code>lm_head</code>. Não localiza causalmente onde a feature foi computada ou usada.
+      <strong>Correlational evidence.</strong> The logit lens shows where a prediction becomes readable by projecting the residual through the final norm and <code>lm_head</code>. It does not causally locate where the feature was computed or used.
     </div>
     <div id="diag-results" class="diag-results" aria-live="polite"></div>
   </section>
 
-  <!-- ============ ATIVAÇÕES ============ -->
+  <!-- ============ ACTIVATIONS ============ -->
   <section class="view instrument-view" id="view-activations">
     <header class="page-toolbar instrument-toolbar">
-      <div><span class="eyebrow">Trace explorer</span><h1>Ativações internas</h1><p>Normas, sparsity e outliers por módulo · captura real via forward hooks (engine Transformers)</p></div>
-      <label class="compact-field"><span>EXECUÇÃO</span><select id="act-request"></select></label>
-      <label class="compact-field"><span>POSIÇÃO</span><select id="act-position"><option value="-1">último token</option></select></label>
+      <div><span class="eyebrow">Trace explorer</span><h1>Internal activations</h1><p>Norms, sparsity and outliers per module · real capture via forward hooks (Transformers engine)</p></div>
+      <label class="compact-field"><span>RUN</span><select id="act-request"></select></label>
+      <label class="compact-field"><span>POSITION</span><select id="act-position"><option value="-1">last token</option></select></label>
       <div class="segmented" id="act-metric-toggle">
-        <button class="active" type="button" data-metric="l2">Norma L2</button>
+        <button class="active" type="button" data-metric="l2">L2 norm</button>
         <button type="button" data-metric="mean">Mean</button>
         <button type="button" data-metric="sparsity">Sparsity</button>
         <button type="button" data-metric="max">Max</button>
       </div>
-      <button class="btn primary" id="act-capture" type="button">Capturar</button>
+      <button class="btn primary" id="act-capture" type="button">Capture</button>
     </header>
     <div class="instrument-canvas activation-layout">
-      <section class="viz-panel activation-matrix-panel"><header class="panel-head"><div><span class="eyebrow">Layer × module</span><h2>Mapa de intensidade das ativações</h2><p id="act-matrix-caption">Capture uma execução Transformers para ver dados reais</p></div><div class="scale-legend" id="act-scale-legend" hidden><span>min</span><i></i><span>max</span></div></header>
+      <section class="viz-panel activation-matrix-panel"><header class="panel-head"><div><span class="eyebrow">Layer × module</span><h2>Activation intensity map</h2><p id="act-matrix-caption">Capture a Transformers run to see real data</p></div><div class="scale-legend" id="act-scale-legend" hidden><span>min</span><i></i><span>max</span></div></header>
         <div class="activation-matrix"><div class="matrix-y" id="activation-matrix-y"></div><div class="matrix-grid" id="activation-matrix"></div><div class="matrix-x" id="activation-axis"></div></div>
-        <div class="panel-empty" id="act-empty">Selecione uma execução e clique em "Capturar".</div>
+        <div class="panel-empty" id="act-empty">Select a run and click "Capture".</div>
       </section>
-      <aside class="activation-inspector viz-panel"><header class="panel-head compact"><div><span class="eyebrow">Seleção</span><h2 id="act-selection-title">Nenhuma célula selecionada</h2></div><span class="outlier-badge" id="act-outlier-badge" hidden></span></header>
+      <aside class="activation-inspector viz-panel"><header class="panel-head compact"><div><span class="eyebrow">Selection</span><h2 id="act-selection-title">No cell selected</h2></div><span class="outlier-badge" id="act-outlier-badge" hidden></span></header>
         <div class="inspector-metrics" id="act-inspector-metrics"></div>
-        <div class="distribution"><header><b>Distribuição</b><span id="act-dim-count"></span></header><div class="chart-wrap" id="act-histogram" style="height:150px"></div></div>
-        <button class="btn full" id="act-add-compare" disabled>Adicionar ao comparador</button>
+        <div class="distribution"><header><b>Distribution</b><span id="act-dim-count"></span></header><div class="chart-wrap" id="act-histogram" style="height:150px"></div></div>
+        <button class="btn full" id="act-add-compare" disabled>Add to comparator</button>
       </aside>
-      <section class="viz-panel neuron-panel"><header class="panel-head"><div><span class="eyebrow">Feature dimensions</span><h2>Top dimensões ativadas</h2></div></header>
+      <section class="viz-panel neuron-panel"><header class="panel-head"><div><span class="eyebrow">Feature dimensions</span><h2>Top activated dimensions</h2></div></header>
         <div id="act-top-dims"></div>
       </section>
     </div>
@@ -359,37 +359,37 @@
   <!-- ============ BENCHMARKS ============ -->
   <section class="view instrument-view" id="view-benchmarks">
     <header class="page-toolbar instrument-toolbar">
-      <div><span class="eyebrow">Teste real</span><h1>Benchmark rápido</h1><p>Execute um prompt no modelo selecionado e registre a medição</p></div>
+      <div><span class="eyebrow">Real test</span><h1>Quick benchmark</h1><p>Run a prompt on the selected model and record the measurement</p></div>
       <label class="compact-field"><span>ENGINE</span><select id="bench-engine"><option value="transformers">Transformers (Hugging Face)</option><option value="ollama">Ollama</option></select></label>
-      <label class="compact-field"><span>MODELO</span><input id="bench-model" placeholder="org/model"></label>
-      <button class="btn primary" id="bench-run">▶ Executar teste</button>
+      <label class="compact-field"><span>MODEL</span><input id="bench-model" placeholder="org/model"></label>
+      <button class="btn primary" id="bench-run">▶ Run test</button>
     </header>
     <div class="instrument-canvas benchmark-layout">
       <section class="benchmark-summary" id="bench-summary">
-        <article><span>Última execução</span><b id="bs-elapsed">—</b><small>segundos</small></article>
+        <article><span>Latest run</span><b id="bs-elapsed">—</b><small>seconds</small></article>
         <article><span>Tok/s</span><b id="bs-tps">—</b><small>tokens/s</small></article>
-        <article><span>Tokens gerados</span><b id="bs-tokens">—</b><small>eval_count</small></article>
-        <article class="benchmark-runtime"><span>Modelo testado</span><b id="bs-model">—</b><small id="bs-engine"></small></article>
+        <article><span>Generated tokens</span><b id="bs-tokens">—</b><small>eval_count</small></article>
+        <article class="benchmark-runtime"><span>Tested model</span><b id="bs-model">—</b><small id="bs-engine"></small></article>
       </section>
 
       <section class="viz-panel benchmark-runner">
-        <label class="field"><span class="label">Prompt do teste</span><textarea id="bench-prompt" rows="5">Explique em duas frases por que o céu parece azul.</textarea></label>
-        <div id="bench-status" class="notice-inline" role="status">Selecione um modelo no Hugging Face ou informe o identificador acima.</div>
+        <label class="field"><span class="label">Test prompt</span><textarea id="bench-prompt" rows="5">Explain in two sentences why the sky looks blue.</textarea></label>
+        <div id="bench-status" class="notice-inline" role="status">Select a model on Hugging Face or enter its identifier above.</div>
         <div id="bench-result"></div>
       </section>
 
       <section class="viz-panel radar-panel">
-        <header class="panel-head"><div><span class="eyebrow">Perfil</span><h2>Comparação entre modelos</h2><p>Métricas heurísticas normalizadas · até 3 modelos com mais execuções</p></div></header>
+        <header class="panel-head"><div><span class="eyebrow">Profile</span><h2>Model comparison</h2><p>Normalized heuristic metrics · up to 3 models with the most runs</p></div></header>
         <div class="chart-wrap medium-chart" id="bench-radar"></div>
       </section>
 
       <section class="viz-panel benchmark-bars">
-        <header class="panel-head"><div><span class="eyebrow">Ranking</span><h2>tok/s por modelo</h2></div></header>
+        <header class="panel-head"><div><span class="eyebrow">Ranking</span><h2>tok/s by model</h2></div></header>
         <div class="chart-wrap medium-chart" id="bench-table"></div>
       </section>
 
       <section class="viz-panel benchmark-history">
-        <header class="panel-head compact"><div><span class="eyebrow">Histórico</span><h2>Execuções de benchmark</h2><p>requests com origin=benchmark</p></div></header>
+        <header class="panel-head compact"><div><span class="eyebrow">History</span><h2>Benchmark runs</h2><p>requests with origin=benchmark</p></div></header>
         <div class="chart-wrap medium-chart" id="bench-history-chart"></div>
       </section>
     </div>
@@ -399,82 +399,82 @@
   <section class="view hf-view" id="view-huggingface">
     <header class="hf-header">
       <div>
-        <span class="eyebrow">Biblioteca integrada</span>
+        <span class="eyebrow">Integrated library</span>
         <h1>Hugging Face Hub</h1>
       </div>
       <a class="hf-official" href="https://huggingface.co" target="_blank" rel="noopener noreferrer">huggingface.co ↗</a>
     </header>
-    <div class="hf-tabs" role="tablist" aria-label="Recursos do Hugging Face Hub">
-      <button class="hf-tab active" id="hf-tab-models" role="tab" aria-selected="true">Modelos</button>
+    <div class="hf-tabs" role="tablist" aria-label="Hugging Face Hub resources">
+      <button class="hf-tab active" id="hf-tab-models" role="tab" aria-selected="true">Models</button>
       <button class="hf-tab" id="hf-tab-datasets" role="tab" aria-selected="false">Datasets</button>
-      <button class="hf-tab" id="hf-tab-local" role="tab" aria-selected="false">Locais</button>
+      <button class="hf-tab" id="hf-tab-local" role="tab" aria-selected="false">Local</button>
     </div>
 
     <form class="hf-filters" id="hf-model-filters">
-      <label class="hf-search"><span class="sr-only">Buscar modelos</span>
+      <label class="hf-search"><span class="sr-only">Search models</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>
-        <input name="search" type="search" placeholder="Buscar modelos por nome…" autocomplete="off"></label>
-      <input name="author" placeholder="Organização / autor" aria-label="Organização ou autor">
+        <input name="search" type="search" placeholder="Search models by name…" autocomplete="off"></label>
+      <input name="author" placeholder="Organization / author" aria-label="Organization or author">
       <select name="pipeline" aria-label="Pipeline">
-        <option value="">Pipeline: todos</option><option>text-generation</option><option>text-classification</option>
+        <option value="">Pipeline: all</option><option>text-generation</option><option>text-classification</option>
         <option>feature-extraction</option><option>sentence-similarity</option><option>image-classification</option>
         <option>automatic-speech-recognition</option><option>text-to-image</option><option>question-answering</option>
       </select>
-      <select name="license" aria-label="Licença">
-        <option value="">Licença: todas</option><option>apache-2.0</option><option>mit</option><option>openrail</option>
+      <select name="license" aria-label="License">
+        <option value="">License: all</option><option>apache-2.0</option><option>mit</option><option>openrail</option>
         <option>creativeml-openrail-m</option><option>llama3</option><option>gemma</option><option>cc-by-4.0</option>
       </select>
-      <select name="gated" aria-label="Acesso"><option value="">Acesso: todos</option><option value="false">Públicos</option><option value="true">Gated</option></select>
-      <button class="btn primary" type="submit">Aplicar</button>
+      <select name="gated" aria-label="Access"><option value="">Access: all</option><option value="false">Public</option><option value="true">Gated</option></select>
+      <button class="btn primary" type="submit">Apply</button>
     </form>
 
     <form class="hf-filters" id="hf-dataset-filters" hidden>
-      <label class="hf-search"><span class="sr-only">Buscar datasets</span>
+      <label class="hf-search"><span class="sr-only">Search datasets</span>
         <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" aria-hidden="true"><circle cx="11" cy="11" r="7"/><path d="m16 16 5 5"/></svg>
-        <input name="search" type="search" placeholder="Buscar datasets por nome…" autocomplete="off"></label>
-      <input name="author" placeholder="Organização / autor" aria-label="Organização ou autor">
-      <select name="modality" aria-label="Modalidade"><option value="">Modalidade: todas</option><option>text</option><option>image</option><option>audio</option><option>video</option><option>tabular</option></select>
-      <select name="task" aria-label="Task"><option value="">Task: todas</option><option>text-classification</option><option>question-answering</option><option>text-generation</option><option>image-classification</option><option>automatic-speech-recognition</option><option>translation</option></select>
-      <select name="license" aria-label="Licença"><option value="">Licença: todas</option><option>apache-2.0</option><option>mit</option><option>cc-by-4.0</option><option>cc-by-sa-4.0</option><option>cc0-1.0</option><option>odc-by</option></select>
-      <select name="gated" aria-label="Acesso"><option value="">Acesso: todos</option><option value="false">Públicos</option><option value="true">Gated</option></select>
-      <button class="btn primary" type="submit">Aplicar</button>
+        <input name="search" type="search" placeholder="Search datasets by name…" autocomplete="off"></label>
+      <input name="author" placeholder="Organization / author" aria-label="Organization or author">
+      <select name="modality" aria-label="Modality"><option value="">Modality: all</option><option>text</option><option>image</option><option>audio</option><option>video</option><option>tabular</option></select>
+      <select name="task" aria-label="Task"><option value="">Task: all</option><option>text-classification</option><option>question-answering</option><option>text-generation</option><option>image-classification</option><option>automatic-speech-recognition</option><option>translation</option></select>
+      <select name="license" aria-label="License"><option value="">License: all</option><option>apache-2.0</option><option>mit</option><option>cc-by-4.0</option><option>cc-by-sa-4.0</option><option>cc0-1.0</option><option>odc-by</option></select>
+      <select name="gated" aria-label="Access"><option value="">Access: all</option><option value="false">Public</option><option value="true">Gated</option></select>
+      <button class="btn primary" type="submit">Apply</button>
     </form>
 
     <div class="hf-content" id="hf-content">
-      <div class="hf-list-head"><span id="hf-result-count" role="status">Explore recursos públicos do Hub</span><span>Ordenado por downloads</span></div>
+      <div class="hf-list-head"><span id="hf-result-count" role="status">Explore public Hub resources</span><span>Sorted by downloads</span></div>
       <div class="hf-grid" id="hf-results" aria-live="polite"></div>
     </div>
 
     <div class="hf-content" id="hf-local-content" hidden>
-      <div class="hf-list-head"><span id="hf-local-count" role="status">Modelos locais</span><span>Ordenado por execuções</span></div>
+      <div class="hf-list-head"><span id="hf-local-count" role="status">Local models</span><span>Sorted by runs</span></div>
       <div class="hf-grid" id="hf-local-results" aria-live="polite"></div>
     </div>
   </section>
 </main>
 </div>
 
-<!-- drawer de detalhe -->
-<aside class="drawer" id="drawer" aria-label="Detalhe da requisição">
+<!-- detail drawer -->
+<aside class="drawer" id="drawer" aria-label="Request details">
   <header>
     <strong id="d-model"></strong>
     <span class="id" id="d-id"></span>
     <span class="spacer" style="flex:1"></span>
     <button class="btn" id="btn-inspect"
-      title="Executa o trace NNsight mínimo no modelo Transformers carregado.">
-      Executar trace NNsight</button>
+      title="Run the minimal NNsight trace on the loaded Transformers model.">
+      Run NNsight trace</button>
     <button class="btn" id="btn-attention"
-      title="Captura pesos reais de atenção (forward read-only) do modelo Transformers carregado.">
-      Mapa de atenção</button>
-    <button class="btn" id="btn-close-drawer">Fechar</button>
+      title="Capture real attention weights (read-only forward pass) from the loaded Transformers model.">
+      Attention map</button>
+    <button class="btn" id="btn-close-drawer">Close</button>
   </header>
   <div class="content" id="drawer-content"></div>
 </aside>
 
 <div class="hf-drawer-backdrop" id="hf-drawer-backdrop" hidden></div>
-<aside class="hf-drawer" id="hf-drawer" aria-label="Detalhes do recurso Hugging Face" aria-hidden="true">
+<aside class="hf-drawer" id="hf-drawer" aria-label="Hugging Face resource details" aria-hidden="true">
   <header>
     <div class="hf-drawer-title"><span class="eyebrow" id="hf-detail-type"></span><strong id="hf-detail-name"></strong></div>
-    <button class="btn icon-btn" id="hf-close-drawer" aria-label="Fechar painel">×</button>
+    <button class="btn icon-btn" id="hf-close-drawer" aria-label="Close pane">×</button>
   </header>
   <div class="hf-drawer-body" id="hf-detail-body"></div>
 </aside>

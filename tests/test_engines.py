@@ -144,10 +144,10 @@ def test_transformers_trace_rejects_unknown_model_layout(monkeypatch):
     assert engine.supports_trace() is False
 
 
-# --- Diagnóstico multi-camada (logit lens correlacional) -------------------
-# Read-only, sem NNsight: usa forward hooks e projeta o resíduo de cada camada
-# pela norma final + lm_head. Testado numa Llama minúscula de pesos aleatórios
-# (sem download); ignorado quando torch/transformers não estão instalados.
+# --- Multi-layer diagnostics (correlational logit lens) -------------------
+# Read-only, without NNsight: uses forward hooks and projects each layer's residual
+# through the final norm + lm_head. Tested on a tiny Llama with random weights
+# (no downloads); skipped when torch/transformers are not installed.
 
 
 def _tiny_llama_engine():
@@ -164,7 +164,7 @@ def _tiny_llama_engine():
             return {"input_ids": torch.tensor([[1, 5, 9, 3]])}
 
         def encode(self, text, add_special_tokens=False):
-            return [7]  # token-alvo resolve para id 7
+            return [7]  # target token resolves to id 7
 
         def decode(self, ids):
             return f"<{ids[0]}>"
@@ -181,7 +181,7 @@ def test_diagnostics_logit_lens_matches_real_logits():
     engine, model, torch = _tiny_llama_engine()
     assert engine.supports_diagnostics() is True
 
-    result = engine.trace_all_layers("oi", target_token="X", top_k=5)
+    result = engine.trace_all_layers("hi", target_token="X", top_k=5)
 
     assert result["num_layers"] == 3
     assert result["final_norm_applied"] is True
@@ -192,15 +192,15 @@ def test_diagnostics_logit_lens_matches_real_logits():
     layers = result["layers"]
     assert layers[0]["delta_norm"] == 0.0
     for entry in layers:
-        assert len(entry["top"]) == 5  # top_k respeitado
+        assert len(entry["top"]) == 5  # top_k respected
         assert set(entry) == {"index", "top", "hidden_norm", "delta_norm", "entropy",
                               "target_rank", "target_prob"}
         assert entry["entropy"] >= 0.0
-        assert set(entry["top"][0]) == {"token_id", "token", "prob"}  # sem vetores brutos
+        assert set(entry["top"][0]) == {"token_id", "token", "prob"}  # no raw vectors
         assert 1 <= entry["target_rank"] <= 32
         assert 0.0 <= entry["target_prob"] <= 1.0
 
-    # âncora de correção: o lens da última camada reproduz o argmax real do modelo
+    # correctness anchor: the final-layer lens reproduces the model's actual argmax
     with torch.inference_mode():
         real = model(input_ids=torch.tensor([[1, 5, 9, 3]])).logits[0, -1]
     assert layers[-1]["top"][0]["token_id"] == int(real.argmax())
@@ -210,7 +210,7 @@ def test_diagnostics_without_final_norm(monkeypatch):
     engine, _model, _torch = _tiny_llama_engine()
     monkeypatch.setattr(engine, "_final_norm_path", lambda: None)
 
-    result = engine.trace_all_layers("oi")
+    result = engine.trace_all_layers("hi")
 
     assert result["final_norm_applied"] is False
     assert result["target_token"] is None
@@ -221,22 +221,22 @@ def test_diagnostics_without_final_norm(monkeypatch):
 def test_diagnostics_requires_supported_layout():
     torch = pytest.importorskip("torch")
     engine = TransformersEngine.__new__(TransformersEngine)
-    engine.model = SimpleNamespace(lm_head=object())  # sem ModuleList conhecida
+    engine.model = SimpleNamespace(lm_head=object())  # no known ModuleList
     engine._torch = torch
     assert engine.supports_diagnostics() is False
     with pytest.raises(RuntimeError):
-        engine.trace_all_layers("oi")
+        engine.trace_all_layers("hi")
 
 
-# --- Captura de ativações reais (norma/mean/sparsity por camada×módulo) ----
-# Mesma Llama minúscula de pesos aleatórios da suíte de diagnóstico acima.
+# --- Real activation capture (norm/mean/sparsity per layer×module) ----
+# Same tiny Llama with random weights as the diagnostics suite above.
 
 
 def test_capture_activations_reports_attn_mlp_resid_per_layer():
     engine, _model, _torch = _tiny_llama_engine()
     assert engine.supports_activations() is True
 
-    result = engine.capture_activations("oi", position=-1)
+    result = engine.capture_activations("hi", position=-1)
 
     assert result["num_layers"] == 3
     assert result["modules"] == ["attn", "mlp", "resid"]
@@ -254,13 +254,13 @@ def test_capture_activations_reports_attn_mlp_resid_per_layer():
 def test_capture_activations_rejects_out_of_range_position():
     engine, _model, _torch = _tiny_llama_engine()
     with pytest.raises(IndexError):
-        engine.capture_activations("oi", position=99)
+        engine.capture_activations("hi", position=99)
 
 
 def test_inspect_activation_returns_top_dims_and_histogram():
     engine, _model, _torch = _tiny_llama_engine()
 
-    result = engine.inspect_activation("oi", layer_index=1, module="mlp",
+    result = engine.inspect_activation("hi", layer_index=1, module="mlp",
                                        position=-1, top_k_dims=4, bins=8)
 
     assert result["layer_index"] == 1
@@ -272,19 +272,19 @@ def test_inspect_activation_returns_top_dims_and_histogram():
         assert 0.0 <= dim["percentile"] <= 100.0
     assert len(result["histogram"]["counts"]) == 8
     assert len(result["histogram"]["edges"]) == 9
-    assert sum(result["histogram"]["counts"]) == 16  # hidden_size da config de teste
+    assert sum(result["histogram"]["counts"]) == 16  # hidden_size from the test config
 
 
 def test_inspect_activation_rejects_unknown_module():
     engine, _model, _torch = _tiny_llama_engine()
     with pytest.raises(ValueError):
-        engine.inspect_activation("oi", layer_index=0, module="bogus")
+        engine.inspect_activation("hi", layer_index=0, module="bogus")
 
 
 def test_inspect_activation_rejects_invalid_layer():
     engine, _model, _torch = _tiny_llama_engine()
     with pytest.raises(IndexError):
-        engine.inspect_activation("oi", layer_index=99, module="mlp")
+        engine.inspect_activation("hi", layer_index=99, module="mlp")
 
 
 def test_activations_requires_supported_layout():
@@ -294,4 +294,4 @@ def test_activations_requires_supported_layout():
     engine._torch = torch
     assert engine.supports_activations() is False
     with pytest.raises(RuntimeError):
-        engine.capture_activations("oi")
+        engine.capture_activations("hi")

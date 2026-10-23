@@ -1,4 +1,4 @@
-/* Fronteira HTTP da integração Hugging Face. A UI usa somente esta interface. */
+/* HTTP boundary for Hugging Face integration. The UI uses only this interface. */
 'use strict';
 
 window.HuggingFaceService = (() => {
@@ -13,7 +13,7 @@ window.HuggingFaceService = (() => {
     let data;
     try { data = await response.json(); }
     catch { data = null; }
-    if (!response.ok) throw new Error(data?.detail || `Falha ao consultar o Hub (${response.status})`);
+    if (!response.ok) throw new Error(data?.detail || `Failed to query the Hub (${response.status})`);
     return data;
   }
 

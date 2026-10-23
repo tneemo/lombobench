@@ -1,8 +1,8 @@
-"""LomboBench — observabilidade caixa-preta dos controles externos de inferência do Ollama.
+"""LomboBench — black-box observability of Ollama's external inference controls.
 
-Fase 1 do LomboAI: proxy transparente + registro em SQLite + Lab de experimentação.
-Este pacote NÃO acessa pesos/ativações do modelo; ele observa parâmetros de
-amostragem, contexto e comportamento (métricas, texto, thinking).
+Phase 1 of LomboAI: transparent proxy + SQLite logging + experimentation Lab.
+This package does NOT access model weights/activations; it observes sampling
+parameters, context and behavior (metrics, text, thinking).
 """
 
 __version__ = "0.1.0"

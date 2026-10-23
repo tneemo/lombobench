@@ -1,22 +1,22 @@
-"""Baseline do modelo e camadas de parâmetros.
+"""Model baseline and parameter layers.
 
-Três camadas, mantidas SEMPRE separadas:
-- solicitado: exatamente o que o cliente enviou;
-- inferido: valor efetivo estimado pelo proxy (request > Modelfile > default do
-  Ollama), cada item anotado com a origem e marcado como inferência;
-- confirmado: somente o que a resposta daquela requisição confirma de fato.
+Three layers, ALWAYS kept separate:
+- requested: exactly what the client sent;
+- inferred: effective value estimated by the proxy (request > Modelfile > Ollama
+  default), each item annotated with its source and marked as an inference;
+- confirmed: only what that request's response actually confirms.
 
-O que vem de /api/ps é estado observado do runtime (observed_runtime_json),
-nunca entra em `confirmed`.
+Data from /api/ps is observed runtime state (observed_runtime_json),
+and never enters `confirmed`.
 """
 
 from __future__ import annotations
 
 from typing import Any
 
-# Defaults built-in do Ollama para os parâmetros de amostragem mais comuns.
-# São INFERÊNCIAS dependentes da versão instalada — entram na camada inferida
-# com origem 'ollama_default' e jamais na camada confirmada.
+# Ollama built-in defaults for the most common sampling parameters.
+# These are INFERENCES dependent on the installed version — they enter the inferred layer
+# with source 'ollama_default' and never the confirmed layer.
 OLLAMA_BUILTIN_DEFAULTS: dict[str, Any] = {
     "temperature": 0.8,
     "top_k": 40,
@@ -29,8 +29,8 @@ OLLAMA_BUILTIN_DEFAULTS: dict[str, Any] = {
     "seed": 0,
 }
 
-# Mapeamento dos nomes do endpoint OpenAI-compat para os nomes do Ollama.
-# Usado apenas na camada INFERIDA; a camada solicitada preserva o nome enviado.
+# Map OpenAI-compatible endpoint names to Ollama names.
+# Used only in the INFERRED layer; the requested layer preserves the submitted name.
 OPENAI_TO_OLLAMA = {
     "temperature": "temperature",
     "top_p": "top_p",
@@ -44,10 +44,10 @@ OPENAI_TO_OLLAMA = {
 
 
 def parse_parameters_raw(text: str | None) -> dict[str, Any]:
-    """Parseia o bloco `parameters` do POST /api/show (derivado; o bruto é preservado).
+    """Parse the `parameters` block from POST /api/show (derived; raw data is preserved).
 
-    Formato: uma linha por parâmetro, `nome<espaços>valor`. Chaves repetidas
-    (ex.: vários `stop`) viram lista.
+    Format: one line per parameter, `name<spaces>value`. Repeated keys
+    (e.g. multiple `stop` entries) become a list.
     """
     params: dict[str, Any] = {}
     if not text:
@@ -82,15 +82,15 @@ def layer_params(
     modelfile_params: dict[str, Any],
     builtin_defaults: dict[str, Any] = OLLAMA_BUILTIN_DEFAULTS,
 ) -> tuple[dict[str, Any], dict[str, Any], dict[str, Any]]:
-    """Produz (inferred, diff, baseline_effective) a partir da camada solicitada.
+    """Produce (inferred, diff, baseline_effective) from the requested layer.
 
     - inferred: {param: {"value": v, "source": "request"|"modelfile"|"ollama_default",
-      "inferred": True}} para todo parâmetro conhecido por alguma das fontes.
-    - diff: subconjunto em que o valor efetivo difere do baseline do modelo
-      (Modelfile, ou default do Ollama na ausência dele), com valor base e origem.
-    - baseline_effective: o valor base de cada parâmetro, para referência.
+      "inferred": True}} for every parameter known to any source.
+    - diff: subset where the effective value differs from the model baseline
+      (Modelfile, or Ollama default if absent), with baseline value and source.
+    - baseline_effective: the baseline value of each parameter, for reference.
 
-    Função pura (sem rede/IO) — coberta por testes.
+    Pure function (no network/IO) — covered by tests.
     """
     inferred: dict[str, Any] = {}
     diff: dict[str, Any] = {}
@@ -122,11 +122,11 @@ def layer_params(
 
 
 def confirmed_from_response(final_chunk: dict[str, Any] | None) -> dict[str, Any]:
-    """Extrai APENAS o que a resposta desta requisição confirma explicitamente.
+    """Extract ONLY what this request's response explicitly confirms.
 
-    O Ollama não ecoa parâmetros de amostragem na resposta; o que dá para
-    confirmar honestamente é pouco (modelo servido, done_reason). A análise
-    deve sempre tratar o resto como inferência — nunca promover.
+    Ollama does not echo sampling parameters in the response; little can be
+    honestly confirmed (served model, done_reason). Analysis must always
+    treat the rest as inference — never promote it.
     """
     confirmed: dict[str, Any] = {}
     if not final_chunk:

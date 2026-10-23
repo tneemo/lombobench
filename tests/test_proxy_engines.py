@@ -9,10 +9,10 @@ from lombo.proxy import _response_chunks, _transformers_upstream
 
 class FakeTransformersEngine:
     def generate(self, prompt, **options):
-        assert prompt[-1] == {"role": "user", "content": "oi"}
+        assert prompt[-1] == {"role": "user", "content": "hi"}
         assert options == {"temperature": 0.2}
         return {
-            "response_text": "olá",
+            "response_text": "hello",
             "thinking_text": None,
             "final_chunk": {"done": True, "done_reason": "stop",
                             "eval_count": 2, "eval_duration": 1_000_000_000},
@@ -24,7 +24,7 @@ class FailingTransformersEngine:
     def generate(self, prompt, **options):
         return {"response_text": None, "thinking_text": None,
                 "final_chunk": None, "metrics": {}, "done_reason": None,
-                "parse_error": "RuntimeError: geração falhou"}
+                "parse_error": "RuntimeError: generation failed"}
 
 
 def test_transformers_response_uses_ollama_chat_shape():
@@ -34,7 +34,7 @@ def test_transformers_response_uses_ollama_chat_shape():
     ))
     body = json.dumps({
         "model": "fake/model",
-        "messages": [{"role": "user", "content": "oi"}],
+        "messages": [{"role": "user", "content": "hi"}],
         "options": {"temperature": 0.2},
         "stream": True,
     }).encode()
@@ -44,14 +44,14 @@ def test_transformers_response_uses_ollama_chat_shape():
 
     assert response.status_code == 200
     assert payload["model"] == "fake/model"
-    assert payload["message"]["content"] == "olá"
+    assert payload["message"]["content"] == "hello"
     assert payload["eval_count"] == 2
 
     async def collect():
         return b"".join([chunk async for chunk in
                          _response_chunks(response, buffered=True)])
 
-    assert json.loads(asyncio.run(collect()))["message"]["content"] == "olá"
+    assert json.loads(asyncio.run(collect()))["message"]["content"] == "hello"
 
 
 def test_transformers_generation_error_is_not_a_silent_200():
@@ -64,5 +64,5 @@ def test_transformers_generation_error_is_not_a_silent_200():
     response = asyncio.run(_transformers_upstream(app, "/api/chat", body))
 
     assert response.status_code == 500
-    assert response.json()["error"] == "RuntimeError: geração falhou"
+    assert response.json()["error"] == "RuntimeError: generation failed"
     assert app.state.transformer_engine_status["fake/model"]["state"] == "error"

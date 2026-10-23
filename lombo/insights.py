@@ -1,10 +1,10 @@
-"""API de agregações (/_lombo/api/*): séries temporais, latência, distribuições,
-catálogo de modelos locais, ambientes, avaliações agregadas e estado de VRAM.
+"""Aggregation API (/_lombo/api/*): time series, latency, distributions,
+local model catalog, environments, aggregated evaluations and VRAM state.
 
-Tudo aqui é leitura pura sobre dados já gravados por analysis.py/proxy.py —
-nenhum endpoint escreve, nenhum shape existente muda. As mesmas camadas nunca
-fundidas (solicitado/inferido/confirmado) valem aqui: agregações são sempre
-etiquetadas com a fonte dos dados que resumem.
+Everything here only reads data already recorded by analysis.py/proxy.py —
+no endpoint writes, no existing shape changes. The same separate layers
+(requested/inferred/confirmed) apply here: aggregations are always labeled
+with the source of the data they summarize.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ async def metrics_timeseries(request: Request, model: str | None = None,
                              experiment: str | None = None, origin: str | None = None,
                              bucket: str = "hour", limit: int = 500):
     if bucket not in ("hour", "day"):
-        raise HTTPException(422, "bucket deve ser 'hour' ou 'day'")
+        raise HTTPException(422, "bucket must be 'hour' or 'day'")
     conn = request.app.state.conn
     length = 13 if bucket == "hour" else 10
     clauses, args = [], []
@@ -88,9 +88,9 @@ async def metrics_latency(request: Request, model: str | None = None,
 async def metrics_distributions(request: Request, metric: str, model: str | None = None,
                                  bins: int = 24):
     if metric not in _DISTRIBUTION_METRICS:
-        raise HTTPException(422, f"metric deve ser um de {sorted(_DISTRIBUTION_METRICS)}")
+        raise HTTPException(422, f"metric must be one of {sorted(_DISTRIBUTION_METRICS)}")
     if not 1 <= bins <= 200:
-        raise HTTPException(422, "bins deve estar entre 1 e 200")
+        raise HTTPException(422, "bins must be between 1 and 200")
     conn = request.app.state.conn
     clauses, args = [f"{metric} IS NOT NULL"], []
     if model is not None:
@@ -146,7 +146,7 @@ async def model_detail(request: Request, model: str):
         "SUM(CASE WHEN error IS NOT NULL THEN 1 ELSE 0 END) * 1.0 / COUNT(*) AS error_rate "
         "FROM requests WHERE model = ?", (model,)).fetchone()
     if base is None and not (agg["n_runs"] or 0):
-        raise HTTPException(404, "modelo não encontrado")
+        raise HTTPException(404, "model not found")
     recent = conn.execute(
         "SELECT id, started_at, condition, origin, status_code, error, eval_count, "
         "tokens_per_second, time_to_first_token_ms FROM requests WHERE model = ? "
@@ -246,9 +246,9 @@ def _model_summary(model: str, base, agg) -> dict:
 
 
 def _evaluations_for(conn, where: str, args: list, group_by_condition: bool = False) -> list[dict]:
-    """Agrega métricas heurísticas (avg), taxas booleanas e contagem de rótulos
-    humanos por modelo (e opcionalmente por condição). Cada tipo de valor de
-    `evaluations.value` é agregado de forma honesta com o que ele representa."""
+    """Aggregate heuristic metrics (avg), boolean rates and human label counts
+    by model (and optionally by condition). Each `evaluations.value` type
+    is aggregated according to what it represents."""
     select_condition = "r.condition, " if group_by_condition else ""
     group_condition = ", r.condition" if group_by_condition else ""
     sql = (f"SELECT r.model, {select_condition}e.metric, e.value, e.source "

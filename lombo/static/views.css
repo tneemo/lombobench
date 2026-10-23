@@ -1,10 +1,10 @@
-/* views.css — aditivo apenas; lab.css permanece intocado.
-   Estilos para os painéis novos (overview/analysis/experiments/performance/
-   activations/benchmarks) e para os contêineres montados via ECharts, que
-   precisam de altura CSS explícita (diferente do SVG manual antigo, que
-   escalava sozinho por viewBox). */
+/* views.css — additive only; lab.css remains untouched.
+   Styles for the new panes (overview/analysis/experiments/performance/
+   activations/benchmarks) and containers mounted through ECharts, which
+   need an explicit CSS height (unlike the old manual SVG, which
+   scaled automatically through viewBox). */
 
-/* ECharts mede clientWidth/clientHeight do contêiner — precisa de altura real. */
+/* ECharts measures container clientWidth/clientHeight — it needs an actual height. */
 .hero-chart { height: 320px; }
 .small-chart { height: 190px; }
 .chart-wrap.medium-chart { height: 240px; }
@@ -21,7 +21,7 @@
 
 .latency-panel .chart-wrap { height: 210px; padding: 6px 10px; }
 
-/* micro stacked bar de duração (tabela de execuções) */
+/* duration micro stacked bar (runs table) */
 .dur-bar {
   display: flex; width: 84px; height: 8px; overflow: hidden;
   border-radius: 2px; background: var(--surface-2);
@@ -32,7 +32,7 @@
 .dur-bar .seg-eval { background: var(--accent); }
 .dur-bar.empty { background: transparent; }
 
-/* linha do tempo da requisição, dentro do drawer de detalhe */
+/* request timeline inside the detail drawer */
 .request-timeline { margin: 6px 0 4px; }
 .request-timeline .chart-wrap { height: 64px; }
 .request-timeline-legend { display: flex; gap: 14px; margin-top: 2px; color: var(--muted); font: 10px var(--mono); }
@@ -42,7 +42,7 @@
 .request-timeline-legend .seg-prompt { background: var(--pane-b); }
 .request-timeline-legend .seg-eval { background: var(--accent); }
 
-/* ================= Experimentos ================= */
+/* ================= Experiments ================= */
 .experiments-layout {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start;
 }
@@ -84,7 +84,7 @@
 .tree-node b { font-size: 10px; }
 .tree-node small { display: block; color: var(--muted); font-size: 9px; }
 
-/* ================= Desempenho ================= */
+/* ================= Performance ================= */
 .performance-layout {
   display: grid; grid-template-columns: 1fr 1fr; gap: 10px; align-items: start;
 }
@@ -107,7 +107,7 @@
 .benchmark-bars { grid-column: 1 / -1; }
 .benchmark-bars .chart-wrap, .radar-panel .chart-wrap { padding: 6px 10px; }
 
-/* ================= Hugging Face · Locais ================= */
+/* ================= Hugging Face · Local ================= */
 .hf-card .warn { color: var(--warn); }
 #local-quant-compare .chart-wrap { height: 190px; padding: 6px 10px; }
 

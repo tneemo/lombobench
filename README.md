@@ -1,57 +1,84 @@
 # LomboBench
 
-Observabilidade **caixa-preta** dos *controles externos de inferência* do Ollama —
-Fase 1 do LomboAI.
+Black-box observability of Ollama's **external inference controls** — phase 1 of LomboAI.
 
-Para cada prompt enviado ao modelo, o LomboBench registra: quais parâmetros foram
-**solicitados**, quais valores efetivos foram **inferidos** (e de onde vieram:
-request, Modelfile ou default do Ollama), o que o servidor efetivamente
-**confirmou**, o diff em relação ao baseline do modelo, o comportamento observável
-(texto, thinking separado, métricas, time-to-first-token) e avaliações
-comportamentais. Esses dados alimentam a Fase 2 (regulador autônomo dos controles).
+For every prompt sent to a model, LomboBench records which parameters were
+**requested**, which effective values were **inferred** (and where they came
+from: request, Modelfile, or Ollama default), what the server actually
+**confirmed**, the diff from the model baseline, observable behavior (text,
+separate thinking, metrics, time-to-first-token), and behavioral evaluations.
+This data feeds phase 2 (an autonomous controller for these controls).
 
-> **Enquadramento honesto:** este sistema não acessa pesos, ativações nem estados
-> internos do modelo — os pesos são imutáveis durante a inferência. Ele observa os
-> controles externos (amostragem, template, system, contexto) e o comportamento.
-> Não substitui ferramentas de interpretabilidade mecanística (NNsight,
-> TransformerLens); a Fase 3 fará essa ponte reexecutando casos registrados.
+> **Honest framing:** this system does not access model weights, activations, or
+> internal states — weights are immutable during inference. It observes external
+> controls (sampling, template, system, context) and behavior. It does not
+> replace mechanistic interpretability tools (NNsight, TransformerLens); phase 3
+> will bridge that gap by rerunning recorded cases.
 
-## Arquitetura
+## Install
 
-```
-Qualquer cliente (curl, LangChain, Open WebUI…)
-        │  http://127.0.0.1:11435  (drop-in: mesma API do Ollama)
-        ▼
-   LomboProxy (FastAPI + httpx)
-        │── repassa tudo ao Ollama :11434 (streaming transparente)
-        │── captura /api/generate, /api/chat, /v1/chat/completions
-        │── Lab + análise em /_lombo/
-        ▼
-   lombo.db (SQLite, escritor único em fila)
+Requires Python 3.12+ and a running Ollama server at `127.0.0.1:11434`.
+
+```sh
+python -m venv .venv
 ```
 
-## Uso
+Activate the virtual environment with the command for your platform:
 
 ```powershell
-.venv\Scripts\python.exe -m lombo            # proxy em :11435, Lab em /_lombo/
+.venv\Scripts\Activate.ps1
+```
+
+```sh
+source .venv/bin/activate
+```
+
+Then install and start LomboBench (the same commands on every platform):
+
+```sh
+pip install -e ".[dev]"
+python -m lombo
+```
+
+Open <http://127.0.0.1:11435/_lombo/>. On Windows, the virtual environment's
+Python executable is `.venv\Scripts\python.exe`.
+
+## Architecture
+
+```
+Any client (curl, LangChain, Open WebUI…)
+        │  http://127.0.0.1:11435  (drop-in: same API as Ollama)
+        ▼
+   LomboProxy (FastAPI + httpx)
+        │── forwards everything to Ollama :11434 (transparent streaming)
+        │── captures /api/generate, /api/chat, /v1/chat/completions
+        │── Lab + analysis at /_lombo/
+        ▼
+   lombo.db (SQLite, single writer via queue)
+```
+
+## Usage
+
+```sh
+python -m lombo            # proxy on :11435, Lab at /_lombo/
 # flags: --port --host --ollama-url --db --no-capture
 ```
 
-Aponte qualquer cliente para `http://127.0.0.1:11435` no lugar do Ollama.
-Metadados experimentais via headers (removidos antes do repasse):
+Point any client to `http://127.0.0.1:11435` instead of Ollama.
+Experimental metadata via headers (removed before forwarding):
 `X-Lombo-Experiment`, `X-Lombo-Condition`, `X-Lombo-Pair`, `X-Lombo-Replicate`,
-`X-Lombo-No-Log` (não grava a requisição).
+`X-Lombo-No-Log` (does not record the request).
 
-### Engines de inferência
+### Inference engines
 
-O contrato em `lombo.engines.Engine` separa o benchmark do runtime. Ele expõe
-`generate`, `tokenize`, `get_model_info` e o gancho `supports_trace`; os
-resultados usam os mesmos campos normalizados da captura atual. O proxy Ollama
-existente continua sendo o caminho padrão e não foi alterado.
+The `lombo.engines.Engine` contract separates the benchmark from the runtime.
+It exposes `generate`, `tokenize`, `get_model_info`, and the `supports_trace`
+hook; results use the same normalized fields as current capture. The existing
+Ollama proxy remains the default path and has not been changed.
 
-Para inferência local com pesos Hugging Face/PyTorch (não GGUF):
+For local inference with Hugging Face/PyTorch weights (not GGUF):
 
-```powershell
+```sh
 pip install -e ".[transformers]"
 ```
 
@@ -60,96 +87,112 @@ from lombo.engines import TransformersEngine
 
 engine = TransformersEngine("Qwen/Qwen2.5-0.5B-Instruct")
 result = engine.generate(
-    [{"role": "user", "content": "Explique entropia em uma frase."}],
+    [{"role": "user", "content": "Explain entropy in one sentence."}],
     seed=42, temperature=0.7, top_p=0.9, top_k=40, max_new_tokens=80,
 )
 print(result["response_text"])
 ```
 
-O engine seleciona dispositivos com `device_map="auto"`, usa BF16 quando a
-GPU oferece suporte (FP16 em outras GPUs e FP32 em CPU) e carrega as
-dependências pesadas somente ao ser instanciado.
+The engine selects devices with `device_map="auto"`, uses BF16 when the GPU
+supports it (FP16 on other GPUs and FP32 on CPU), and loads heavy dependencies
+only when instantiated.
 
-O primeiro suporte opt-in ao NNsight é instalado separadamente:
+Initial opt-in support for NNsight is installed separately:
 
-```powershell
+```sh
 pip install -e ".[transformers,nnsight]"
 ```
 
 ```python
-# trace de camada única (opt-in NNsight):
+# single-layer trace (NNsight opt-in):
 if engine.supports_trace():
-    trace = engine.trace("Explique entropia.", layer_index=0)
+    trace = engine.trace("Explain entropy.", layer_index=0)
 
-# diagnóstico correlacional multi-camada (logit lens, sem NNsight):
+# multi-layer correlational diagnostic (logit lens, without NNsight):
 if engine.supports_diagnostics():
-    diag = engine.trace_all_layers("Explique entropia.", target_token="ordem")
+    diag = engine.trace_all_layers("Explain entropy.", target_token="order")
 ```
 
-`trace` executa um único forward pass e captura somente a saída da camada
-indicada e os logits da última posição. O retorno serializável contém o índice
-da camada, shape e dtype da ativação, IDs dos tokens, logits do último token e
-metadados do modelo.
+`trace` runs a single forward pass and captures only the output of the specified
+layer and the logits at the final position. The serializable return contains
+the layer index, activation shape and dtype, token IDs, final-token logits, and
+model metadata.
 
-`trace_all_layers` (diagnóstico de camadas, exposto no Lab pela aba
-**Diagnóstico**) faz o **logit lens** numa única passada **read-only** — um
-forward hook por bloco captura o resíduo, projetado pela norma final + `lm_head`
-(não usa NNsight; a leitura é passiva). Reporta, por camada, os top-k tokens, as
-normas do hidden state (‖h‖ e Δ residual) e — se um token-alvo for informado —
-seu rank e probabilidade. Projetar o resíduo da última camada reproduz os logits
-reais do modelo, ancorando o lens à predição verdadeira. Isso mostra **em qual
-camada uma predição fica *legível*** (leitura representacional), o que **não** é
-o mesmo que provar que a camada *computa* ou *usa* a feature. A resposta causal
-("utilizada") exige intervenção — activation patching, onde o NNsight de fato
-brilha — prevista para a próxima fase. Attention, MLP, cache, ablation, patching
-e SAEs permanecem fora do escopo desta fase.
+`trace_all_layers` (layer diagnostics, exposed in the Lab under the
+**Diagnostics** tab) performs the **logit lens** in one **read-only** pass — a
+forward hook on each block captures the residual, projected through the final
+norm and `lm_head` (it does not use NNsight; the read is passive). For each
+layer it reports the top-k tokens, hidden-state norms (‖h‖ and residual Δ), and
+— if a target token is provided — its rank and probability. Projecting the final
+layer's residual reproduces the model's actual logits, anchoring the lens to the
+true prediction. This shows **at which layer a prediction becomes *legible***
+(representational readout), which is **not** the same as proving that the layer
+*computes* or *uses* the feature. A causal answer (“used”) requires intervention
+— activation patching, where NNsight excels — planned for the next phase.
+Attention, MLP, cache, ablation, patching, and SAEs remain out of scope for this
+phase.
 
 ### Lombo Lab (`http://127.0.0.1:11435/_lombo/`)
 
-Painéis de chat lado a lado com **uma variável manipulada por painel**
-(temperature, seed, modelo, system…). Dois modos por sessão:
+Side-by-side chat panels with **one variable manipulated per panel**
+(temperature, seed, model, system…). Two modes per session:
 
-- **Experimento controlado (padrão)** — cada rodada é independente: todos os
-  painéis recebem o mesmo histórico-base e só a variável difere. Comparável;
-  é o modo do paper.
-- **Conversa ramificada** — cada painel segue seu próprio histórico
-  (`branch_id`/`parent_request_id` registram a árvore).
+- **Controlled experiment (default)** — each round is independent: all panels
+  receive the same base history and only the variable differs. Comparable; this
+  is the paper's mode.
+- **Branched conversation** — each panel follows its own history
+  (`branch_id`/`parent_request_id` record the tree).
 
-Cada envio gera um `pair_id`; reenvios incrementam `replicate`. Sem seed
-definida, o Lab injeta uma seed explícita por rodada (igual em todos os
-painéis) — todo registro é **replayável** (gancho do "Inspecionar execução"
-da Fase 3). Sob cada resposta: diff palavra a palavra, métricas e rótulos
-epistêmicos humanos (*correto, alucinou, reconheceu entidade inexistente,
-corrigiu premissa falsa, pediu esclarecimento, demonstrou incerteza, resposta
-inconclusiva*), gravados em `evaluations` com `source='human'`.
+Each submission generates a `pair_id`; resubmissions increment `replicate`.
+Without a defined seed, the Lab injects an explicit seed per round (the same in
+every panel) — every record is **replayable** (hook for phase 3's “Inspect
+execution”). Under each response: word-by-word diff, metrics, and human epistemic
+labels (*correct, hallucinated, recognized a nonexistent entity, corrected a
+false premise, asked for clarification, expressed uncertainty, inconclusive
+response*), stored in `evaluations` with `source='human'`.
 
-### Análise e export
+### Analysis and export
 
-Aba **Análise** (ou `/_lombo/api/*`): timeline, detalhe com as três camadas de
-parâmetros (nunca fundidas — `/api/ps` fica à parte em `observed_runtime_json`),
-`GET /summary`, `GET /compare?pair_id=`, `GET /params/impact?param=temperature`,
-`GET /export?format=csv|json`.
+**Analysis** tab (or `/_lombo/api/*`): timeline, detail with the three parameter
+layers (never merged — `/api/ps` is kept separately in `observed_runtime_json`),
+`GET /summary`, `GET /compare?pair_id=`,
+`GET /params/impact?param=temperature`, `GET /export?format=csv|json`.
 
-## Overhead do proxy
+## Proxy overhead
 
-Medido, não alegado: `python scripts/overhead_bench.py`. Na máquina de
-desenvolvimento (Ollama 0.31.2, llama3.2:3b, n=8), a diferença de mediana ficou
-dentro do ruído de medição (−10,8 ms total; −4,6 ms TTFT).
+Measured, not claimed: `python scripts/overhead_bench.py`. On the development
+machine (Ollama 0.31.2, llama3.2:3b, n=8), the median difference was within
+measurement noise (−10.8 ms total; −4.6 ms TTFT).
 
-## Privacidade
+## Privacy
 
-O proxy grava prompts e respostas localmente. Por padrão escuta **apenas
-127.0.0.1**; `X-Lombo-No-Log` exclui uma requisição; `--no-capture` desliga a
-captura; o Lab exibe aviso permanente.
+The proxy records prompts and responses locally. By default it listens **only
+on 127.0.0.1**; `X-Lombo-No-Log` excludes a request; `--no-capture` disables
+capture; the Lab displays a permanent warning.
 
-## Desenvolvimento
+## Development
 
-```powershell
-.venv\Scripts\python.exe -m pytest    # camadas de params, parsing de stream, heurísticas
+```sh
+python -m pytest    # parameter layers, stream parsing, heuristics
 ```
 
-Fora do escopo desta fase (preparado no schema): regulador autônomo (Fase 2),
-logprobs por token, avaliações por modelo juiz. A interpretabilidade via NNsight
-(Fase 3) já entrega o diagnóstico **correlacional** de camadas (logit lens
-multi-camada, aba Diagnóstico); o diagnóstico **causal** por activation patching
-é o próximo passo (`requests.request_body_raw` + seed + digest garantem o replay).
+Out of scope for this phase (prepared in the schema): autonomous controller
+(phase 2), per-token logprobs, model-judge evaluations. Interpretability via
+NNsight (phase 3) already provides **correlational** layer diagnostics
+(multi-layer logit lens, Diagnostics tab); **causal** diagnostics via activation
+patching are the next step (`requests.request_body_raw` + seed + digest guarantee
+replay).
+
+## Docs
+
+- [Design language](docs/DESIGN_LANGUAGE.md)
+- [Thinking-to-Response Transfer](docs/notes/thinking-to-response-transfer.md)
+
+## Third-party
+
+`lombo/static/vendor/echarts.min.js` is Apache ECharts, licensed under Apache-2.0
+(see [`lombo/static/vendor/LICENSE-echarts`](lombo/static/vendor/LICENSE-echarts)).
+
+## License
+
+MIT; see [LICENSE](LICENSE).

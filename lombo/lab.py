@@ -25,8 +25,7 @@ router = APIRouter()
 
 
 class LabSession(BaseModel):
-    # Preserve the stored default; the Lab translates its display text.
-    title: str = "Sessão sem título"
+    title: str = "Untitled session"
     mode: str = Field(default="controlled", pattern="^(controlled|branched)$")
     base_config: dict = Field(default_factory=dict)
     panes: list[dict] = Field(default_factory=list)

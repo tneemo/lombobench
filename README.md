@@ -176,10 +176,11 @@ capture; the Lab displays a permanent warning.
 pip install -e ".[dev]"
 ruff check .
 python -m pytest    # parameter layers, stream parsing, heuristics
+node --test tests/js    # browser display helpers; requires Node.js 18+
 ```
 
 CI runs these lint and test checks on Python 3.12 and 3.13, along with Python
-compilation, JavaScript syntax checks, and wheel packaging verification.
+compilation, JavaScript syntax checks and tests, and wheel packaging verification.
 
 Out of scope for this phase (prepared in the schema): autonomous controller
 (phase 2), per-token logprobs, model-judge evaluations. Interpretability via

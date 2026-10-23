@@ -31,5 +31,7 @@ jobs:
           for file in lombo/static/*.js; do
             node --check "$file" || exit 1
           done
+      - name: Test JavaScript
+        run: node --test tests/js
       - name: Verify wheel packaging
         run: pip wheel . --no-deps -w dist

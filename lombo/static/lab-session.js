@@ -104,8 +104,7 @@ $('#btn-create-session').onclick = async () => {
   }));
   if (panes.length < 2) { alert('Create at least 2 panes to compare.'); return; }
   const body = {
-    // Keep generated titles stable in storage; translate them when displayed.
-    title: $('#s-title').value.trim() || `Sessão ${new Date().toLocaleString()}`,
+    title: $('#s-title').value.trim() || `Session ${new Date().toLocaleString()}`,
     mode: document.querySelector('input[name="s-mode"]:checked').value,
     base_config, panes,
   };

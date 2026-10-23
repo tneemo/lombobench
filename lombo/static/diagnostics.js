@@ -442,7 +442,7 @@
         });
         const payload = await response.json();
         if (!response.ok) throw new Error(payload.detail || `HTTP ${response.status}`);
-        return { diag: payload, color: cssColor(COLORS[index % COLORS.length]), name: request.condition || `condição ${index + 1}` };
+        return { diag: payload, color: cssColor(COLORS[index % COLORS.length]), name: request.condition || `condition ${index + 1}` };
       }));
       const entries = settled.filter(result => result.status === 'fulfilled').map(result => result.value);
       const failures = settled.filter(result => result.status === 'rejected');

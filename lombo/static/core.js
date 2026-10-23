@@ -34,7 +34,7 @@ function humanLabelText(label) {
 }
 
 function conditionText(condition) {
-  // Preserve diagnostic fallback names in exported JSON as well.
+  // Translate legacy diagnostic fallback names for display.
   if (/^condição \d+$/.test(condition)) return condition.replace('condição ', 'condition ');
   return Object.hasOwn(CONDITION_TEXT, condition) ? CONDITION_TEXT[condition] : condition;
 }
